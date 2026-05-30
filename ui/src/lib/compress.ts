@@ -1,14 +1,14 @@
-// ui/src/lib/compress.ts — 0.09.7 reference-image pre-upload compression.
+﻿// ui/src/lib/compress.ts ??0.09.7 reference-image pre-upload compression.
 //
 // Responsibility: accept a raw File from drag/paste/picker and return a
 // base64 data URL whose length is under `maxB64Bytes` (default 6 MB, giving
 // ~0.7 MB margin below the server's 7 MB base64 cap at lib/refs.js /
 // config.limits.maxRefB64Bytes).
 //
-// Strategy (Option A — compress-everything):
+// Strategy (Option A ??compress-everything):
 //   1. Decode via createImageBitmap (fast, low-memory path).
 //   2. Clamp longest side to 4096 (model doesn't need >4k and iOS Safari
-//      has a 16,777,216 px² canvas cap). Also clamp total pixel area.
+//      has a 16,777,216 px짼 canvas cap). Also clamp total pixel area.
 //   3. Draw onto an offscreen canvas.
 //   4. JPEG encode starting at quality 0.85, step down to 0.7 then 0.55
 //      if the output exceeds the budget. Return the first pass that fits.
@@ -31,13 +31,13 @@ export interface CompressOptions {
 }
 
 const DEFAULTS: Required<CompressOptions> = {
-  maxB64Bytes: 6_000_000,
+  maxB64Bytes: 15_000_000,
   preserveTransparency: false,
-  maxEdge: 4096,
-  qualityLadder: [0.85, 0.7, 0.55],
+  maxEdge: 6144,
+  qualityLadder: [0.95, 0.9, 0.85, 0.75, 0.65],
 };
 
-const MAX_CANVAS_PX = 16_777_216; // iOS Safari cap (4096×4096).
+const MAX_CANVAS_PX = 16_777_216; // iOS Safari cap (4096횞4096).
 
 function clampDimensions(w: number, h: number, maxEdge: number): { w: number; h: number } {
   let width = w;
@@ -98,7 +98,7 @@ export async function compressToBase64(file: File, opts: CompressOptions = {}): 
   try {
     bitmap = await createImageBitmap(file);
   } catch (err) {
-    throw new Error("이미지 디코드 실패. JPEG/PNG로 변환 후 다시 시도해 주세요.", { cause: err });
+    throw new Error("?대?吏 ?붿퐫???ㅽ뙣. JPEG/PNG濡?蹂?????ㅼ떆 ?쒕룄??二쇱꽭??", { cause: err });
   }
 
   try {
@@ -114,7 +114,7 @@ export async function compressToBase64(file: File, opts: CompressOptions = {}): 
       const blob = await canvasToBlob(canvas, "image/png");
       const dataUrl = await blobToDataUrl(blob);
       if (b64LengthOfDataUrl(dataUrl) > cfg.maxB64Bytes) {
-        throw new Error("이미지 압축 실패. JPEG/PNG로 미리 변환 후 다시 시도해 주세요.");
+        throw new Error("?대?吏 ?뺤텞 ?ㅽ뙣. JPEG/PNG濡?誘몃━ 蹂?????ㅼ떆 ?쒕룄??二쇱꽭??");
       }
       return dataUrl;
     }
@@ -126,7 +126,7 @@ export async function compressToBase64(file: File, opts: CompressOptions = {}): 
         return dataUrl;
       }
     }
-    throw new Error("이미지 압축 실패. JPEG/PNG로 미리 변환 후 다시 시도해 주세요.");
+    throw new Error("?대?吏 ?뺤텞 ?ㅽ뙣. JPEG/PNG濡?誘몃━ 蹂?????ㅼ떆 ?쒕룄??二쇱꽭??");
   } finally {
     bitmap.close?.();
   }
@@ -143,3 +143,4 @@ export function hasAlphaChannel(file: File): boolean {
   const t = (file.type || "").toLowerCase();
   return t === "image/png";
 }
+
