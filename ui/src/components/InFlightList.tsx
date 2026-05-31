@@ -6,9 +6,10 @@ function truncate(s: string, max = 28) {
   return t.length > max ? `${t.slice(0, max)}...` : t;
 }
 
+import { selectInflightSummary } from "../store/selectors";
+
 export function InFlightList() {
-  const inFlight = useAppStore((s) => s.inFlight);
-  const cancelInFlightJob = useAppStore((s) => s.cancelInFlightJob);
+  const { inFlight, cancelInFlightJob } = useAppStore(selectInflightSummary);
   const videoProgress = useAppStore((s) => s.videoProgress);
   const { t } = useI18n();
 

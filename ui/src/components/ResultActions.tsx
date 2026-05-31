@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAppStore } from "../store/useAppStore";
+import { selectCurrentImage } from "../store/selectors";
 import { useI18n } from "../i18n";
 import { exportImageToComfy } from "../lib/api";
 import { isVideoItem, extractLastFrame } from "../lib/videoMedia";
@@ -25,7 +26,7 @@ export function ResultActions({
   onAfterDeleteFocus,
 }: ResultActionsProps) {
   const { t } = useI18n();
-  const currentImage = useAppStore((s) => s.currentImage);
+  const currentImage = useAppStore(selectCurrentImage);
   const showToast = useAppStore((s) => s.showToast);
   const setPrompt = useAppStore((s) => s.setPrompt);
   const insertPromptToComposer = useAppStore((s) => s.insertPromptToComposer);

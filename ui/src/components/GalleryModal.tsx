@@ -21,25 +21,34 @@ import { GalleryStorageBar } from "./gallery/GalleryStorageBar";
 
 const STORAGE_NOTICE_DISMISSED_KEY = "ima2.storageNoticeDismissed.0.09.23";
 
+import {
+  selectGalleryOpenState,
+  selectGalleryItems,
+  selectHistoryPaginationState,
+} from "../store/selectors";
+
 export function GalleryModal() {
   const { t } = useI18n();
-  const open = useAppStore((s) => s.galleryOpen);
+  const open = useAppStore(selectGalleryOpenState);
   const close = useAppStore((s) => s.closeGallery);
-  const history = useAppStore((s) => s.history);
   const selectHistory = useAppStore((s) => s.selectHistory);
   const currentImage = useAppStore((s) => s.currentImage);
   const trashHistoryItem = useAppStore((s) => s.trashHistoryItem);
   const showToast = useAppStore((s) => s.showToast);
   const toggleGalleryFavorite = useAppStore((s) => s.toggleGalleryFavorite);
-  const galleryScope = useAppStore((s) => s.galleryScope);
   const setGalleryScope = useAppStore((s) => s.setGalleryScope);
-  const historyNextCursor = useAppStore((s) => s.historyNextCursor);
-  const historyLoadingOlder = useAppStore((s) => s.historyLoadingOlder);
-  const favoriteHistoryNextCursor = useAppStore((s) => s.favoriteHistoryNextCursor);
-  const favoriteHistoryLoadingOlder = useAppStore((s) => s.favoriteHistoryLoadingOlder);
   const loadOlderHistory = useAppStore((s) => s.loadOlderHistory);
   const loadFavoriteHistory = useAppStore((s) => s.loadFavoriteHistory);
   const loadOlderFavoriteHistory = useAppStore((s) => s.loadOlderFavoriteHistory);
+
+  const { history, galleryScope } = useAppStore(selectGalleryItems);
+  const {
+    historyNextCursor,
+    historyLoadingOlder,
+    favoriteHistoryNextCursor,
+    favoriteHistoryLoadingOlder,
+  } = useAppStore(selectHistoryPaginationState);
+
   const currentSessionId = useAppStore(selectCurrentSessionId);
 
   const [query, setQuery] = useState("");

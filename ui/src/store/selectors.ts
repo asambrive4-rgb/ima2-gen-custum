@@ -73,3 +73,47 @@ export const selectNodeGraphState = (s: AppState) => ({
   selectNodeGraph: s.selectNodeGraph,
   clearNodeSelection: s.clearNodeSelection,
 });
+
+export const selectHistoryState = (s: AppState) => ({
+  history: s.history,
+  currentImage: s.currentImage,
+  loadedHistoryRetainLimit: s.loadedHistoryRetainLimit,
+});
+
+export const selectHistoryPaginationState = (s: AppState) => ({
+  historyNextCursor: s.historyNextCursor,
+  historyLoadingOlder: s.historyLoadingOlder,
+  favoriteHistoryNextCursor: s.favoriteHistoryNextCursor,
+  favoriteHistoryLoadingOlder: s.favoriteHistoryLoadingOlder,
+});
+
+export const selectGalleryOpenState = (s: AppState) => s.galleryOpen;
+
+export const selectGalleryItems = (s: AppState) => ({
+  history: s.history,
+  galleryFavorites: s.galleryFavorites,
+  galleryScope: s.galleryScope,
+  activeSessionId: s.activeSessionId,
+});
+
+export const selectCanvasViewport = (s: AppState) => ({
+  canvasOpen: s.canvasOpen,
+  canvasZoom: s.canvasZoom,
+  canvasPanX: s.canvasPanX,
+  canvasPanY: s.canvasPanY,
+  setCanvasZoom: s.setCanvasZoom,
+  setCanvasPan: s.setCanvasPan,
+});
+
+export const selectSettingsModalState = (s: AppState) => ({
+  settingsOpen: s.settingsOpen,
+  activeSettingsSection: s.activeSettingsSection,
+  openSettings: s.openSettings,
+  closeSettings: s.closeSettings,
+});
+
+export const selectToastState = (s: AppState) => ({
+  toast: s.toast,
+  toastLog: s.toastLog,
+  dismissToast: s.dismissToast,
+});
