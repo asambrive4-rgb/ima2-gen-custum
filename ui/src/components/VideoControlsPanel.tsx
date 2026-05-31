@@ -171,7 +171,7 @@ export function VideoControlsPanel() {
             보관함이 비어 있습니다.
           </div>
         ) : (
-          <div className="ref-lib-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", maxHeight: "240px", overflowY: "auto", paddingRight: "4px" }}>
+          <div className="ref-lib-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", maxHeight: "480px", overflowY: "auto", paddingRight: "4px" }}>
             {referenceLibraryItems.map((item) => (
               <div
                 key={item.id}

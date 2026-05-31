@@ -1,7 +1,7 @@
-import { type ChildProcess, spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import type { ChildProcess } from "node:child_process";
+import { dirname, join, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isWin } from "../bin/lib/platform.js";
+import { spawnBin } from "../bin/lib/platform.js";
 import { config } from "../config.js";
 import { findAvailablePort } from "./runtimePorts.js";
 
@@ -72,12 +72,12 @@ export async function startGrokProxy(options: GrokProxyOptions = {}) {
     }
     options.onPortSelected?.({ host, port, requestedPort, url: `http://${host}:${port}/v1` });
     console.log(`Starting bundled progrok proxy for Grok images at http://${host}:${port}/v1 (managed by ima2 serve)...`);
-    const progrokBin = join(localBinPath(), isWin ? "progrok.cmd" : "progrok");
-    const child = spawn(progrokBin, ["proxy", "--host", host, "--port", String(port)], {
+    const child = spawnBin("progrok", ["proxy", "--host", host, "--port", String(port)], {
       stdio: ["ignore", "pipe", "pipe"],
-      shell: isWin,
-      windowsHide: true,
-      env: process.env,
+      env: {
+        ...process.env,
+        PATH: `${localBinPath()}${delimiter}${process.env.PATH || ""}`,
+      },
     });
     currentChild = child;
 
