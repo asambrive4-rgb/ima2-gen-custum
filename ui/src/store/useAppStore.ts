@@ -1072,12 +1072,12 @@ type AppState = {
   setModeration: (m: Moderation) => void;
   setImageModel: (m: ImageModel) => void;
   // Video generation (Grok reference-to-video / I2V / T2V)
-  videoModelSelected: boolean;
+  videoModelSelected: string | false;
   videoDuration: number;
   videoResolution: VideoResolutionUI;
   videoAspectRatio: string;
   videoProgress: number | null;
-  selectVideoModel: () => void;
+  selectVideoModel: (model?: string) => void;
   setVideoDuration: (n: number) => void;
   setVideoResolution: (r: VideoResolutionUI) => void;
   setVideoAspectRatio: (a: string) => void;
@@ -3102,8 +3102,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   videoResolution: "720p",
   videoAspectRatio: "auto",
   videoProgress: null,
-  selectVideoModel: () => {
-    set({ videoModelSelected: true });
+  selectVideoModel: (model) => {
+    set({ videoModelSelected: model || "grok-imagine-video" });
     if (get().provider !== "grok") get().setProvider("grok");
   },
   setVideoDuration: (videoDuration) => set({ videoDuration }),
@@ -3235,6 +3235,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         {
           prompt,
           requestId: flightId,
+          model: get().videoModelSelected || undefined,
           referenceImages: refs.length >= 2 ? refs : undefined,
           sourceImage: refs.length === 1 ? refs[0] : undefined,
           duration: clampVideoDurationUI(get().videoDuration, mode),
