@@ -9,6 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import { useAppStore } from "../store/useAppStore";
+import { selectCurrentImage } from "../store/selectors";
 import { useCreateBlankCanvas } from "../hooks/useCreateBlankCanvas";
 import { ResultActions } from "./ResultActions";
 import { ResultPromptSummary } from "./ResultPromptSummary";
@@ -55,7 +56,7 @@ function getClassicImageSrc(image: GenerateItem): string {
 }
 
 export function Canvas() {
-  const currentImage = useAppStore((s) => s.currentImage);
+  const currentImage = useAppStore(selectCurrentImage);
   const importLocalImageToHistory = useAppStore((s) => s.importLocalImageToHistory);
   const multimodeSequence = useAppStore((s) => {
     const id = s.multimodePreviewFlightId;

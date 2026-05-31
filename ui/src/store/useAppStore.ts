@@ -3,27 +3,12 @@
 // tests/settings-persistence-contract.test.js enforces this invariant.
 // Legacy generation-controls contract: GENERATION_DEFAULTS_STORAGE_KEY = "ima2.generationDefaults".
 import { create } from "zustand";
-import type { CanvasExportBackground, HexColor } from "../types/canvas";
 import type {
-  Count,
-  Format,
   GenerateItem,
   GenerateResponse,
-  HistoryStripLayout,
   EmbeddedGenerationMetadata,
-  ImageModel,
-  Moderation,
   MultimodeGenerateResponse,
   MultimodeSequenceStatus,
-  Provider,
-  Quality,
-  ResolvedTheme,
-  SettingsSection,
-  SizePreset,
-  ThemeFamily,
-  ThemePreference,
-  UIMode,
-  VideoResolutionUI,
 } from "../types";
 import { isMultiResponse } from "../types";
 import {
@@ -58,9 +43,7 @@ import {
   clearReferenceLibrary as apiClearReferenceLibrary,
   useReferenceLibraryItem,
   uploadReferenceLibraryImage,
-  type HistoryCursor,
   type SessionSummary,
-  type SessionFull,
   type SessionGraphEdge,
 } from "../lib/api";
 import { compressImage, readFileAsDataURL } from "../lib/image";
@@ -68,7 +51,6 @@ import { compressToBase64, isHeic } from "../lib/compress";
 import {
   normalizeCustomSizePairDetailed,
   parseRequestedCustomSide,
-  type CustomSizeAdjustmentReason,
 } from "../lib/size";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -77,7 +59,6 @@ import {
   deriveVideoModeUI,
   clampVideoDurationUI,
 } from "../lib/imageModels";
-import type { ReasoningEffort } from "../lib/reasoning";
 import {
   GALLERY_DEFAULT_SCOPE_STORAGE_KEY,
   GALLERY_SCOPE_STORAGE_KEY,
@@ -96,7 +77,6 @@ import {
 import { getNextChildPosition, getNextRootPosition } from "../lib/nodeLayout";
 import {
   clearNodeRefs as clearStoredNodeRefs,
-  loadNodeRefs,
   pruneNodeRefs,
   saveNodeRefs,
 } from "../lib/nodeRefStorage";
@@ -111,11 +91,8 @@ import {
   nodeHasImage,
   topologicalSortSelected,
   validateBatchDependencies,
-  type NodeBatchMode,
 } from "../lib/nodeBatch";
-import type { Node as FlowNode, Edge as FlowEdge } from "@xyflow/react";
-import { t, loadLocale, saveLocale, type Locale } from "../i18n";
-import type { ImaErrorCode } from "../lib/errorCodes";
+import { t, loadLocale, saveLocale } from "../i18n";
 import { handleError } from "../lib/errorHandler";
 import { ENABLE_AGENT_MODE, ENABLE_CARD_NEWS_MODE, ENABLE_NODE_MODE } from "../lib/devMode";
 import {
@@ -123,11 +100,24 @@ import {
   getShortcutTarget,
   getVisibleGalleryItems,
   resolveVisibleShortcutCurrent,
-  type GalleryShortcutAction,
 } from "../lib/galleryShortcuts";
 import { compareSequenceItems, getSidebarHistoryShortcutTarget } from "../lib/history/sidebarHistory";
 import { resolveWorkspaceSettings } from "../lib/workspaceProfile";
 import { isVideoUrl, extractLastFrame } from "../lib/videoMedia";
+
+// 3단계 리팩토링으로 외부로 추출한 타입 및 헬퍼를 Re-export & Import
+import type { ImageNodeStatus, ImageNodeData, GraphNode, GraphEdge, GraphSaveReason, GraphSaveResult } from "./graphTypes";
+import { DEFAULT_CHILD_SOURCE_HANDLE, DEFAULT_CHILD_TARGET_HANDLE, newGraphEdgeId, normalizeNodeHandleId, getOppositeTargetHandle, mapSessionToGraph } from "./graphHelpers";
+import type { ToastEntry, ToastState, ErrorCardEntry, ComposeSheetTab, TrashPendingState, CustomSizeConfirmState, MetadataRestoreState } from "./uiTypes";
+import type { MultimodeSequenceState } from "./multimodeTypes";
+import { removeImageFromMultimodeSequences, getActiveSidebarSequenceId } from "./multimodeHelpers";
+import type { AppState } from "./appStateTypes";
+
+export type { ImageNodeStatus, ImageNodeData, GraphNode, GraphEdge, GraphSaveReason, GraphSaveResult };
+export { DEFAULT_CHILD_SOURCE_HANDLE, DEFAULT_CHILD_TARGET_HANDLE, newGraphEdgeId, normalizeNodeHandleId, getOppositeTargetHandle, mapSessionToGraph };
+export type { ToastEntry, ToastState, ErrorCardEntry, ComposeSheetTab, TrashPendingState, CustomSizeConfirmState, MetadataRestoreState };
+export type { MultimodeSequenceState };
+export { removeImageFromMultimodeSequences, getActiveSidebarSequenceId };
 
 export type GalleryScope = "current-session" | "all";
 
@@ -155,28 +145,20 @@ import {
 
 import {
   normalizeCount,
-  SIZE_PRESET_VALUES,
   parseMetadataSize,
   isQuality,
   isFormat,
   isModeration,
-  isProvider,
-  isPromptMode,
-  isSizePreset,
   composePrompt,
-  normalizeInsertedPrompt,
-  normalizeInsertedPromptArray,
   loadGenerationDefaults,
   saveGenerationDefaultsPatch,
   type InsertedPrompt,
-  type GenerationDefaults,
 } from "./generationDefaults";
 
 import {
   HISTORY_LIMIT,
   cloneInsertedPrompts,
   getHistoryComposerPatch,
-  narrowGenerateKind,
   mapHistoryItem,
   historyKey,
   withoutHistoryDuplicate,
@@ -184,7 +166,6 @@ import {
   preserveHistoryMetadata,
   mergeHistoryItems,
   retainHistoryItems,
-  multimodeImageKey,
   mergeMultimodeImages,
 } from "./historyHelpers";
 
@@ -198,86 +179,15 @@ import {
   loadInFlight,
   saveInFlight as apiSaveInFlight,
   type PersistedInFlight,
-  type ServerInFlightJob,
   type ServerTerminalJob,
-  type InflightQueryScope,
   INFLIGHT_TTL_MS,
 } from "./inflightHelpers";
-
-export {
-  loadRightPanelOpen,
-  loadUIMode,
-  loadThemePreference,
-  loadThemeFamily,
-  loadHistoryStripLayout,
-  loadGalleryScope,
-  loadCanvasExportBackground,
-  persistCanvasExportBackground,
-  loadImageModel,
-  saveImageModel,
-  loadReasoningEffort,
-  saveReasoningEffort,
-  loadWebSearchEnabled,
-  saveWebSearchEnabled,
-  resolveThemePreference,
-  loadSelectedFilename,
-  saveSelectedFilename,
-  loadActiveSessionId,
-  saveActiveSessionId,
-  normalizeCount,
-  SIZE_PRESET_VALUES,
-  parseMetadataSize,
-  isQuality,
-  isFormat,
-  isModeration,
-  isProvider,
-  isPromptMode,
-  isSizePreset,
-  composePrompt,
-  normalizeInsertedPrompt,
-  normalizeInsertedPromptArray,
-  loadGenerationDefaults,
-  saveGenerationDefaultsPatch,
-  cloneInsertedPrompts,
-  getHistoryComposerPatch,
-  narrowGenerateKind,
-  mapHistoryItem,
-  historyKey,
-  withoutHistoryDuplicate,
-  findHistoryDuplicate,
-  preserveHistoryMetadata,
-  mergeHistoryItems,
-  retainHistoryItems,
-  multimodeImageKey,
-  mergeMultimodeImages,
-  getInflightQueryScopes,
-  matchesInflightScope,
-  fetchInflightScopes,
-  toPersistedInFlightJob,
-  terminalJobError,
-  isCanceledGenerationError,
-  loadInFlight,
-  INFLIGHT_TTL_MS,
-};
-
-export type {
-  InsertedPrompt,
-  GenerationDefaults,
-  PersistedInFlight,
-  ServerInFlightJob,
-  ServerTerminalJob,
-  InflightQueryScope,
-};
-
-
 
 // Module-level lock to dedupe concurrent runGenerateNodeInPlace calls for the
 // same clientId. Prevents double-fire from rapid clicks before React's
 // disabled propagation lands, React 18 StrictMode dev re-invocation, or any
 // other path that funnels through runGenerateNodeInPlace twice in one tick.
 const nodeGenerationLocks = new Set<string>();
-
-
 
 function saveInFlight(list: PersistedInFlight[]): void {
   apiSaveInFlight(list, () => {
@@ -286,19 +196,6 @@ function saveInFlight(list: PersistedInFlight[]): void {
 }
 
 const MAX_REFERENCE_IMAGES = 5;
-
-type GraphSaveReason =
-  | "debounced"
-  | "manual"
-  | "switch-session"
-  | "recovery"
-  | "beforeunload"
-  | "queued"
-  | "edge-disconnect"
-  | "node-complete";
-type GraphSaveResult = "saved" | "skipped" | "conflict" | "failed";
-
-
 
 function stripDataUrlPrefix(dataUrl: string): string {
   return dataUrl.replace(/^data:[^;]+;base64,/, "");
@@ -317,486 +214,7 @@ async function compressReferenceSource(src: string, filename = "reference.png"):
   });
 }
 
-export type ImageNodeStatus =
-  | "empty"
-  | "pending"
-  | "reconciling"
-  | "ready"
-  | "stale"
-  | "asset-missing"
-  | "error";
 
-export type ImageNodeData = {
-  clientId: ClientNodeId;
-  serverNodeId: string | null;
-  parentServerNodeId: string | null;
-  prompt: string;
-  imageUrl: string | null;
-  status: ImageNodeStatus;
-  pendingRequestId: string | null;
-  recoveryRequestId?: string | null;
-  pendingPhase?: string | null;
-  pendingStartedAt?: number | null;
-  partialImageUrl?: string | null;
-  error?: string;
-  elapsed?: number;
-  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh";
-  webSearchCalls?: number;
-  model?: string | null;
-  size?: string | null;
-  referenceImages?: string[];
-};
-
-export type GraphNode = FlowNode<ImageNodeData>;
-export type GraphEdge = FlowEdge;
-
-const DEFAULT_CHILD_SOURCE_HANDLE = "source-right";
-const DEFAULT_CHILD_TARGET_HANDLE = "target-left";
-
-function newGraphEdgeId(
-  sourceClientId: ClientNodeId,
-  targetClientId: ClientNodeId,
-  sourceHandle?: string | null,
-  targetHandle?: string | null,
-): string {
-  const sourceAnchor = sourceHandle ?? "auto";
-  const targetAnchor = targetHandle ?? "auto";
-  return `${sourceClientId}:${sourceAnchor}->${targetClientId}:${targetAnchor}`;
-}
-
-function normalizeNodeHandleId(
-  handleId: string | null | undefined,
-  type: "source" | "target",
-): string | null {
-  if (!handleId) return null;
-  return handleId.startsWith(`${type}-`) ? handleId : null;
-}
-
-function getOppositeTargetHandle(sourceHandle?: string | null): string | null {
-  switch (sourceHandle) {
-    case "source-top":
-      return "target-bottom";
-    case "source-right":
-      return "target-left";
-    case "source-bottom":
-      return "target-top";
-    case "source-left":
-      return "target-right";
-    default:
-      return null;
-  }
-}
-
-function mapSessionToGraph(session: SessionFull): {
-  graphNodes: GraphNode[];
-  graphEdges: GraphEdge[];
-  graphVersion: number;
-} {
-  const graphNodes: GraphNode[] = session.nodes.map((n) => {
-    const d = (n.data ?? {}) as Partial<ImageNodeData>;
-    const explicitImageUrl =
-      typeof d.imageUrl === "string" && d.imageUrl.length > 0 ? d.imageUrl : null;
-    const fallbackImageUrl =
-      typeof d.serverNodeId === "string" && d.serverNodeId.length > 0
-        ? `/generated/${d.serverNodeId}.png`
-        : null;
-    const imageUrl = explicitImageUrl ?? fallbackImageUrl;
-    const data: ImageNodeData = {
-      clientId: n.id as ClientNodeId,
-      serverNodeId: (d.serverNodeId ?? null) as string | null,
-      parentServerNodeId: (d.parentServerNodeId ?? null) as string | null,
-      prompt: typeof d.prompt === "string" ? d.prompt : "",
-      imageUrl,
-      status: (d.status ?? (imageUrl ? "ready" : "empty")) as ImageNodeStatus,
-      pendingRequestId: (d.pendingRequestId ?? null) as string | null,
-      recoveryRequestId: (d.recoveryRequestId ?? null) as string | null,
-      pendingPhase: (d.pendingPhase ?? null) as string | null,
-      pendingStartedAt:
-        typeof d.pendingStartedAt === "number" ? d.pendingStartedAt : null,
-      partialImageUrl: null,
-      error: d.error as string | undefined,
-      elapsed: d.elapsed as number | undefined,
-      reasoningEffort: d.reasoningEffort as ImageNodeData["reasoningEffort"] | undefined,
-      webSearchCalls: d.webSearchCalls as number | undefined,
-      model: (d.model ?? null) as string | null,
-      size: (d.size ?? null) as string | null,
-      referenceImages: loadNodeRefs(session.id, n.id),
-    };
-    return {
-      id: n.id,
-      type: "imageNode",
-      position: { x: n.x, y: n.y },
-      data,
-    };
-  });
-  const graphEdges: GraphEdge[] = session.edges.map((e) => {
-    const data = (e.data ?? {}) as Record<string, unknown>;
-    return {
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      sourceHandle: typeof data.sourceHandle === "string" ? data.sourceHandle : null,
-      targetHandle: typeof data.targetHandle === "string" ? data.targetHandle : null,
-    };
-  });
-  return {
-    graphNodes: deriveParentServerNodeIds(graphNodes, graphEdges),
-    graphEdges,
-    graphVersion: session.graphVersion,
-  };
-}
-
-type ToastEntry = { message: string; error: boolean; id: number; createdAt: number };
-type ToastState = ToastEntry | null;
-type ErrorCardEntry = { code: ImaErrorCode; fallbackMessage?: string; id: number; createdAt: number };
-export type ComposeSheetTab = "prompt" | "controls" | "library";
-type TrashPendingState = {
-  filename: string;
-  trashId: string;
-  item: GenerateItem;
-  expiresAt: number;
-} | null;
-
-type CustomSizeConfirmState = {
-  requestedW: number;
-  requestedH: number;
-  adjustedW: number;
-  adjustedH: number;
-  reasons: CustomSizeAdjustmentReason[];
-  continuation:
-    | { kind: "classic" }
-    | { kind: "multimode" }
-    | { kind: "node"; clientId: ClientNodeId }
-    | { kind: "node-in-place"; clientId: ClientNodeId }
-    | { kind: "node-variation"; clientId: ClientNodeId };
-} | null;
-
-type MetadataRestoreState = {
-  filename: string;
-  image: string;
-  metadata: EmbeddedGenerationMetadata;
-  source: "xmp" | "png-comment" | string;
-  targetNodeId?: ClientNodeId | null;
-} | null;
-
-export type MultimodeSequenceState = {
-  sequenceId: string;
-  requestId: string;
-  requested: number;
-  returned: number;
-  images: GenerateItem[];
-  partials: Array<{ image: string; index?: number | null }>;
-  status: MultimodeSequenceStatus;
-  elapsed?: string;
-  error?: string | null;
-};
-
-function removeImageFromMultimodeSequences(
-  sequences: Record<string, MultimodeSequenceState>,
-  filename: string,
-): Record<string, MultimodeSequenceState> {
-  let changed = false;
-  const next: Record<string, MultimodeSequenceState> = {};
-  for (const [id, sequence] of Object.entries(sequences)) {
-    const images = sequence.images.filter((image) => image.filename !== filename);
-    if (images.length === sequence.images.length) {
-      next[id] = sequence;
-      continue;
-    }
-    changed = true;
-    if (images.length === 0) continue;
-    next[id] = {
-      ...sequence,
-      images,
-      returned: images.length,
-      status:
-        sequence.status === "complete" && images.length < sequence.requested
-          ? "partial"
-          : sequence.status,
-    };
-  }
-  return changed ? next : sequences;
-}
-
-function getActiveSidebarSequenceId(
-  state: Pick<AppState, "multimodePreviewFlightId" | "multimodeSequences">,
-): string | null {
-  const id = state.multimodePreviewFlightId;
-  if (!id) return null;
-  if (id.startsWith("history:")) return id.slice("history:".length);
-  return state.multimodeSequences[id]?.sequenceId ?? null;
-}
-
-type AppState = {
-  provider: Provider;
-  quality: Quality;
-  sizePreset: SizePreset;
-  customW: number;
-  customH: number;
-  format: Format;
-  moderation: Moderation;
-  imageModel: ImageModel;
-  reasoningEffort: ReasoningEffort;
-  webSearchEnabled: boolean;
-  count: Count;
-  multimode: boolean;
-  multimodeMaxImages: Count;
-  multimodeSequences: Record<string, MultimodeSequenceState>;
-  multimodeAbortControllers: Record<string, AbortController>;
-  multimodePreviewFlightId: string | null;
-  promptMode: "auto" | "direct";
-  prompt: string;
-  referenceImages: string[];
-  canvasReferenceImage: string | null;
-  addReferences: (files: File[]) => Promise<void>;
-  addReferenceDataUrl: (dataUrl: string) => void;
-  removeReference: (index: number) => void;
-  clearReferences: () => void;
-  useCurrentAsReference: () => Promise<void>;
-  useImageAsReference: (item: GenerateItem) => Promise<void>;
-  attachCanvasVersionReference: (item: GenerateItem) => Promise<void>;
-  activeGenerations: number;
-  unseenGeneratedCount: number;
-  inFlight: PersistedInFlight[];
-  cancelInFlightJob: (requestId: string) => Promise<void>;
-  startInFlightPolling: () => void;
-  reconcileInflight: () => Promise<void>;
-  reconcileGraphPending: () => Promise<void>;
-  syncFromStorage: () => void;
-  currentImage: GenerateItem | null;
-  applyMergedCanvasImage: (item: GenerateItem) => void;
-  addGeneratedHistoryItem: (item: GenerateItem) => Promise<void>;
-  history: GenerateItem[];
-  historyNextCursor: HistoryCursor | null;
-  historyLoadingOlder: boolean;
-  favoriteHistoryNextCursor: HistoryCursor | null;
-  favoriteHistoryLoadingOlder: boolean;
-  loadedHistoryRetainLimit: number;
-  loadOlderHistory: () => Promise<void>;
-  loadFavoriteHistory: () => Promise<void>;
-  loadOlderFavoriteHistory: () => Promise<void>;
-  trashPending: TrashPendingState;
-  toast: ToastState;
-  toastLog: ToastEntry[];
-  customSizeConfirm: CustomSizeConfirmState;
-  metadataRestore: MetadataRestoreState;
-  readDroppedImageMetadata: (file: File, targetNodeId?: ClientNodeId | null) => Promise<boolean>;
-  applyMetadataRestore: () => void;
-  cancelMetadataRestore: () => void;
-  addMetadataRestoreAsReference: () => void;
-  rightPanelOpen: boolean;
-  toggleRightPanel: () => void;
-  composeSheetOpen: boolean;
-  composeSheetTab: ComposeSheetTab;
-  openComposeSheet: (tab?: ComposeSheetTab) => void;
-  setComposeSheetTab: (tab: ComposeSheetTab) => void;
-  closeComposeSheet: () => void;
-  galleryOpen: boolean;
-  openGallery: () => void;
-  closeGallery: () => void;
-  galleryScope: GalleryScope;
-  galleryDefaultScope: GalleryScope;
-  setGalleryScope: (scope: GalleryScope) => void;
-  setGalleryDefaultScope: (scope: GalleryScope) => void;
-
-  settingsOpen: boolean;
-  activeSettingsSection: SettingsSection;
-  readinessPopupOpen: boolean;
-  openSettings: (section?: SettingsSection) => void;
-  closeSettings: () => void;
-  toggleSettings: () => void;
-  setActiveSettingsSection: (section: SettingsSection) => void;
-  openReadinessPopup: () => void;
-  closeReadinessPopup: () => void;
-
-  uiMode: UIMode;
-  setUIMode: (m: UIMode) => void;
-
-  theme: ThemePreference;
-  resolvedTheme: ResolvedTheme;
-  themeFamily: ThemeFamily;
-  historyStripLayout: HistoryStripLayout;
-  setTheme: (theme: ThemePreference) => void;
-  setThemeFamily: (family: ThemeFamily) => void;
-  setHistoryStripLayout: (layout: HistoryStripLayout) => void;
-  syncThemeFromStorage: () => void;
-  syncThemeFamilyFromStorage: () => void;
-  refreshResolvedTheme: () => void;
-
-  locale: Locale;
-  setLocale: (l: Locale) => void;
-
-  graphNodes: GraphNode[];
-  graphEdges: GraphEdge[];
-  setGraphNodes: (n: GraphNode[]) => void;
-  setGraphEdges: (e: GraphEdge[]) => void;
-  nodeSelectionMode: boolean;
-  nodeBatchRunning: boolean;
-  nodeBatchStopping: boolean;
-  toggleNodeSelectionMode: () => void;
-  selectAllGraphNodes: () => void;
-  selectNodeGraph: (clientId: ClientNodeId, additive: boolean) => void;
-  clearNodeSelection: () => void;
-  runNodeBatch: (mode: NodeBatchMode) => Promise<void>;
-  cancelNodeBatch: () => void;
-  addRootNode: () => ClientNodeId;
-  createRootNodeFromHistoryItem: (item: GenerateItem) => ClientNodeId;
-  addChildNode: (parentClientId: ClientNodeId) => ClientNodeId;
-  addSiblingNode: (sourceClientId: ClientNodeId) => ClientNodeId;
-  duplicateBranchRoot: (sourceClientId: ClientNodeId) => ClientNodeId;
-  addChildNodeAt: (
-    parentClientId: ClientNodeId,
-    position: { x: number; y: number },
-    sourceHandle?: string | null,
-  ) => ClientNodeId;
-  connectNodes: (
-    sourceClientId: ClientNodeId,
-    targetClientId: ClientNodeId,
-    sourceHandle?: string | null,
-    targetHandle?: string | null,
-  ) => void;
-  updateNodePrompt: (clientId: ClientNodeId, prompt: string) => void;
-  addNodeReferences: (clientId: ClientNodeId, files: File[]) => Promise<void>;
-  addNodeReferenceDataUrl: (clientId: ClientNodeId, dataUrl: string) => void;
-  removeNodeReference: (clientId: ClientNodeId, index: number) => void;
-  clearNodeReferences: (clientId: ClientNodeId) => void;
-  generateNode: (clientId: ClientNodeId) => Promise<void>;
-  generateNodeInPlace: (clientId: ClientNodeId) => Promise<void>;
-  generateNodeVariation: (clientId: ClientNodeId, sizeOverride?: string) => Promise<void>;
-  runGenerateNode: (clientId: ClientNodeId, sizeOverride?: string) => Promise<void>;
-  runGenerateNodeInPlace: (
-    clientId: ClientNodeId,
-    options?: {
-      sizeOverride?: string;
-      parentServerNodeIdOverride?: string | null;
-      suppressToast?: boolean;
-    },
-  ) => Promise<string | null>;
-  deleteNode: (clientId: ClientNodeId) => void;
-  deleteNodes: (clientIds: ClientNodeId[]) => void;
-  disconnectEdge: (edgeId: string) => void;
-  disconnectEdges: (edgeIds: string[]) => void;
-
-  // Sessions (0.06)
-  sessions: SessionSummary[];
-  activeSessionId: string | null;
-  activeSessionGraphVersion: number | null;
-  sessionLoading: boolean;
-  loadSessions: () => Promise<void>;
-  switchSession: (id: string) => Promise<void>;
-  createAndSwitchSession: (title?: string) => Promise<void>;
-  renameCurrentSession: (title: string) => Promise<void>;
-  deleteSessionById: (id: string) => Promise<void>;
-  scheduleGraphSave: () => void;
-  flushGraphSave: (reason?: GraphSaveReason) => Promise<void>;
-
-  setProvider: (p: Provider) => void;
-  setQuality: (q: Quality) => void;
-  setSizePreset: (s: SizePreset) => void;
-  setCustomSize: (w: number, h: number) => void;
-  setFormat: (f: Format) => void;
-  setModeration: (m: Moderation) => void;
-  setImageModel: (m: ImageModel) => void;
-  // Video generation (Grok reference-to-video / I2V / T2V)
-  videoModelSelected: string | false;
-  videoDuration: number;
-  videoResolution: VideoResolutionUI;
-  videoAspectRatio: string;
-  videoProgress: number | null;
-  selectVideoModel: (model?: string) => void;
-  setVideoDuration: (n: number) => void;
-  setVideoResolution: (r: VideoResolutionUI) => void;
-  setVideoAspectRatio: (a: string) => void;
-  activeVideoRefCount: () => number;
-  runVideoGenerate: (nodeId?: string) => Promise<void>;
-  animateImage: (filename: string, prompt?: string) => Promise<void>;
-  setReasoningEffort: (e: ReasoningEffort) => void;
-  setWebSearchEnabled: (enabled: boolean) => void;
-  setCount: (c: Count) => void;
-  setMultimode: (enabled: boolean) => void;
-  setMultimodeMaxImages: (c: Count) => void;
-  generateMultimode: (sizeOverride?: string) => Promise<void>;
-  cancelMultimode: () => void;
-  setPromptMode: (m: "auto" | "direct") => void;
-  setPrompt: (p: string) => void;
-  insertedPrompts: InsertedPrompt[];
-  insertPromptToComposer: (prompt: InsertedPrompt) => void;
-  removeInsertedPromptFromComposer: (id: string) => void;
-  moveInsertedPromptInComposer: (id: string, direction: "up" | "down") => void;
-  clearInsertedPrompts: () => void;
-  selectHistory: (item: GenerateItem) => void;
-  showHistorySequence: (sequenceId: string) => void;
-  markGeneratedResultsSeen: () => void;
-  selectHistoryShortcutTarget: (action: GalleryShortcutAction) => void;
-  trashHistoryItem: (item: GenerateItem) => Promise<void>;
-  trashHistorySequence: (sequenceId: string) => Promise<void>;
-  restorePendingTrash: () => Promise<void>;
-  clearPendingTrash: () => void;
-  permanentlyDeleteHistoryItemByClick: (item: GenerateItem) => Promise<void>;
-  permanentlyDeleteHistoryItemByShortcut: (item: GenerateItem) => Promise<void>;
-  removeFromHistory: (filename: string) => void;
-  addHistoryItem: (item: GenerateItem) => void;
-  importLocalImageToHistory: (file: File) => Promise<GenerateItem | null>;
-  generate: () => Promise<void>;
-  runGenerate: (sizeOverride?: string) => Promise<void>;
-  confirmCustomSizeAdjustment: () => Promise<void>;
-  cancelCustomSizeAdjustment: () => void;
-  hydrateHistory: () => void;
-  showToast: (message: string, error?: boolean) => void;
-  dismissToast: (id: number) => void;
-  errorCard: ErrorCardEntry | null;
-  errorCardLog: ErrorCardEntry[];
-  showErrorCard: (code: ImaErrorCode, params?: { fallbackMessage?: string }) => void;
-  dismissErrorCard: (id?: number) => void;
-  getResolvedSize: () => string;
-
-  // Workspace Profile
-  workspaceProfile: import("../lib/workspaceProfile").WorkspaceProfile;
-  setWorkspaceProfile: (profile: import("../lib/workspaceProfile").WorkspaceProfile) => void;
-
-  // Prompt Builder panel toggle
-  promptBuilderOpen: boolean;
-  togglePromptBuilder: () => void;
-
-  // Prompt Library (0.23)
-  promptLibraryOpen: boolean;
-  setPromptLibraryOpen: (open: boolean) => void;
-  togglePromptLibrary: () => void;
-  promptLibrary: { prompts: import("../lib/api").PromptItem[]; folders: import("../lib/api").PromptFolder[] };
-  promptLibraryLoading: boolean;
-  loadPromptLibrary: () => Promise<void>;
-  savePromptToLibrary: (payload: { name?: string; text: string; tags?: string[]; folderId?: string; mode?: "auto" | "direct" }) => Promise<void>;
-  deletePromptFromLibrary: (id: string) => Promise<void>;
-  togglePromptFavorite: (id: string) => Promise<void>;
-  importPromptsToLibrary: (files: File[]) => Promise<void>;
-  galleryFavorites: Set<string>;
-  toggleGalleryFavorite: (filename: string) => Promise<void>;
-  browserId: string;
-
-  // Canvas Mode (0.24)
-  canvasOpen: boolean;
-  canvasZoom: number;
-  canvasPanX: number;
-  canvasPanY: number;
-  canvasExportBackground: CanvasExportBackground;
-  canvasExportMatteColor: HexColor;
-  openCanvas: () => void;
-  closeCanvas: () => void;
-  setCanvasZoom: (zoom: number) => void;
-  resetCanvasZoom: () => void;
-  setCanvasPan: (x: number, y: number) => void;
-  resetCanvasPan: () => void;
-  setCanvasExportBackground: (mode: CanvasExportBackground) => void;
-  setCanvasExportMatteColor: (color: HexColor) => void;
-  referenceLibraryItems: import("../lib/api").ReferenceLibraryItem[];
-  referenceLibraryLoading: boolean;
-  loadReferenceLibrary: () => Promise<void>;
-  addLibraryItemAsReference: (item: import("../lib/api").ReferenceLibraryItem) => Promise<void>;
-  deleteLibraryItem: (id: string) => Promise<void>;
-  clearReferenceLibrary: () => Promise<void>;
-  referenceLibraryUploading: boolean;
-  uploadLibraryImage: (file: File, autoUse: boolean) => Promise<void>;
-};
 
 function formatSize(w: number, h: number): string {
   return `${w}x${h}`;
