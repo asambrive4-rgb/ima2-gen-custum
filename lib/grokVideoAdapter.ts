@@ -469,6 +469,7 @@ export async function generateVideoViaGrok(prompt: string, ctx: RouteRuntimeCont
   const payload = buildVideoGenerationPayload(plan, { model, sourceImageUrl: srcUrl, referenceImageUrls: refUrls });
   let xaiVideoRequestId: string;
   let effectiveModel = model;
+<<<<<<< HEAD
 
   // grokv1.5 doesn't support T2V — inject a white canvas as source image to use I2V path
   let effectivePayload = payload;
@@ -487,6 +488,12 @@ export async function generateVideoViaGrok(prompt: string, ctx: RouteRuntimeCont
     xaiVideoRequestId = await startVideoRequest(ctx, effectivePayload, options);
   } catch (e: any) {
     // Fallback: if 1.5-preview still fails, retry with base model
+=======
+  try {
+    xaiVideoRequestId = await startVideoRequest(ctx, payload, options);
+  } catch (e: any) {
+    // Fallback: if 1.5-preview fails, retry with base model
+>>>>>>> 50ea2d1 (feat(video): restore grokv1.5 with auto-fallback to v1.0 on failure)
     if (model !== "grok-imagine-video" && e?.status === 400) {
       effectiveModel = "grok-imagine-video";
       const fallbackPayload = buildVideoGenerationPayload(plan, { model: effectiveModel, sourceImageUrl: srcUrl, referenceImageUrls: refUrls });
