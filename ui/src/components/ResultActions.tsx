@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { useI18n } from "../i18n";
 import { exportImageToComfy } from "../lib/api";
@@ -109,13 +109,13 @@ export function ResultActions({
         // Load video series topic if present
         const meta = (actionImage as any).videoSeries;
         if (meta?.topic) {
-          useAppStore.getState().setVideoTopic(meta.topic);
+          (useAppStore.getState() as unknown as { setVideoTopic?: (topic: string) => void }).setVideoTopic?.(meta.topic);
         }
       } else {
         await useImageAsReference(actionImage);
       }
     } catch {
-      // non-fatal — fall back to prompt-only fork
+      // non-fatal ??fall back to prompt-only fork
     }
     if (canvasOpen && imageOverride) {
       insertPromptToComposer({
@@ -255,3 +255,4 @@ export function ResultActions({
     </div>
   );
 }
+
