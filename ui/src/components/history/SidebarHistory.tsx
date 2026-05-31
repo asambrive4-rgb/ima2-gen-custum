@@ -4,7 +4,6 @@ import { useI18n } from "../../i18n";
 import {
   getSidebarHistoryActiveKey,
   groupSidebarHistoryEntries,
-  SIDEBAR_HISTORY_RENDER_LIMIT,
 } from "../../lib/history/sidebarHistory";
 import { SidebarHistoryImageCard } from "./SidebarHistoryImageCard";
 import { SidebarHistorySequenceCard } from "./SidebarHistorySequenceCard";
@@ -38,7 +37,7 @@ export function SidebarHistory() {
   const activeKey = getSidebarHistoryActiveKey(currentImage, activePreviewSequenceId);
 
   const visibleHistory = useMemo(
-    () => groupSidebarHistoryEntries(history).slice(0, SIDEBAR_HISTORY_RENDER_LIMIT),
+    () => groupSidebarHistoryEntries(history).slice(0, 20),
     [history],
   );
 
@@ -128,6 +127,11 @@ export function SidebarHistory() {
               />
             )
           ))}
+          {visibleHistory.length >= 20 && (
+            <div className="sidebar-history__hint" style={{ fontSize: "10px", color: "var(--text-dim)", padding: "10px 4px 4px 4px", textAlign: "center", opacity: 0.8 }}>
+              {t("history.recentHistoryLimitHint")}
+            </div>
+          )}
         </div>
       )}
     </section>

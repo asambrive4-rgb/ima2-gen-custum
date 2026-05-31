@@ -19,7 +19,7 @@ export function HistoryStrip() {
   const { t } = useI18n();
   const activeKey = currentImage ? getGalleryItemKey(currentImage) : null;
   const visibleHistory = useMemo(() => {
-    return uniqueGalleryItems(history.filter(isGalleryVisibleItem));
+    return uniqueGalleryItems(history.filter(isGalleryVisibleItem)).slice(0, 20);
   }, [history]);
 
   useEffect(() => {

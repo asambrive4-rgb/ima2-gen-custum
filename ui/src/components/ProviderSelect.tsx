@@ -96,7 +96,6 @@ export function ProviderSelect({ allowGrok = true }: ProviderSelectProps) {
 
   return (
     <>
-      <div className="section-title">{t("provider.authTitle")}</div>
       <div className="provider-row">
         {PROVIDERS.map((p) => {
           const selected = provider === p.value;
@@ -121,9 +120,7 @@ export function ProviderSelect({ allowGrok = true }: ProviderSelectProps) {
           );
         })}
       </div>
-      {provider === "grok" ? (
-        <p className="provider-helper">{t("provider.grokManagedByIma2")}</p>
-      ) : null}
+
       <ApiDisabledModal
         open={!!blockedInfo}
         providerLabel={blockedInfo?.label ?? ""}

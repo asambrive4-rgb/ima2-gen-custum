@@ -4,13 +4,11 @@ import { Canvas } from "./components/Canvas";
 import { ClassicWorkspace } from "./components/classic/ClassicWorkspace";
 import { RightPanel } from "./components/RightPanel";
 import { HistoryStrip } from "./components/HistoryStrip";
-import { Toast } from "./components/Toast";
 import { ErrorCard } from "./components/ErrorCard";
 import { GalleryModal } from "./components/GalleryModal";
 import { CustomSizeConfirmModal } from "./components/CustomSizeConfirmModal";
 import { MetadataRestoreDialog } from "./components/MetadataRestoreDialog";
 import { ProviderReadinessPopup } from "./components/ProviderReadinessPopup";
-import { TrashUndoToast } from "./components/TrashUndoToast";
 import { MobileSettingsToggle } from "./components/MobileSettingsToggle";
 import { MobileAppBar } from "./components/MobileAppBar";
 import { MobileComposeSheet } from "./components/MobileComposeSheet";
@@ -160,8 +158,6 @@ export default function App() {
         {uiMode === "agent" ? null : uiMode === "card-news" ? null : <RightPanel />}
       </div>
       <CustomSizeConfirmModal />
-      <TrashUndoToast />
-      <Toast />
       <ErrorCard />
       <GalleryModal />
       <MetadataRestoreDialog />

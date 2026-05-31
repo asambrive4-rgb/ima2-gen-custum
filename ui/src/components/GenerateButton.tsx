@@ -5,12 +5,17 @@ export function GenerateButton() {
   const activeGenerations = useAppStore((s) => s.activeGenerations);
   const generate = useAppStore((s) => s.generate);
   const openReadinessPopup = useAppStore((s) => s.openReadinessPopup);
+  const videoModelSelected = useAppStore((s) => s.videoModelSelected);
   const { t } = useI18n();
 
   const loading = activeGenerations > 0;
-  const label = loading
-    ? t("generate.buttonLoading", { n: activeGenerations })
-    : t("generate.button");
+  const label = videoModelSelected
+    ? loading
+      ? t("generate.videoButtonLoading", { n: activeGenerations })
+      : t("generate.videoButton")
+    : loading
+      ? t("generate.buttonLoading", { n: activeGenerations })
+      : t("generate.button");
 
   return (
     <div className="generate-row">

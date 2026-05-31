@@ -145,6 +145,39 @@ export function registerHistoryRoutes(app: Express, ctxRaw: RouteRuntimeContext)
     }
   });
 
+  app.get("/api/history/videos", async (req: Request, res: Response) => {
+    try {
+      const limitRaw = parseInt(asStr(req.query.limit));
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 20;
+      const offsetRaw = parseInt(asStr(req.query.offset));
+      const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
+
+      const { rows } = await getHistoryIndex(ctx.config.storage.generatedDir);
+      const videoRows = rows.filter((r) => r.mediaType === "video");
+
+      const pageRows = videoRows.slice(offset, offset + limit);
+      const items = pageRows.map((r) => ({
+        id: r.filename,
+        prompt: r.userPrompt || r.prompt || "",
+        videoUrl: r.url,
+        createdAt: r.createdAt,
+        duration: r.video?.duration || null,
+        resolution: r.video?.resolution || null,
+        aspectRatio: r.video?.aspectRatio || null,
+      }));
+
+      res.json({
+        items,
+        total: videoRows.length,
+        hasMore: offset + limit < videoRows.length,
+      });
+    } catch (e) {
+      const err = errInfo(e);
+      logError("history", "video_history_error", err.raw);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete("/api/history/:filename/permanent", async (req: Request<{ filename: string }>, res: Response) => {
     try {
       const filename = decodeURIComponent(req.params.filename);

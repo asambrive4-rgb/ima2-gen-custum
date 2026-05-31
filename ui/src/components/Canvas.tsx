@@ -15,6 +15,7 @@ import { ResultPromptSummary } from "./ResultPromptSummary";
 import { MultimodeSequencePreview } from "./MultimodeSequencePreview";
 import { ViewerControls } from "./viewer/ViewerControls";
 import { useI18n } from "../i18n";
+import { VideoHistoryModal } from "./VideoHistoryModal";
 import { isEditableTarget } from "../lib/domEvents";
 import { getImageModelShortLabel } from "../lib/imageModels";
 import { isVideoItem } from "../lib/videoMedia";
@@ -74,6 +75,7 @@ export function Canvas() {
   const showToast = useAppStore((s) => s.showToast);
   const { t } = useI18n();
   const [dropActive, setDropActive] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const { creatingBlankCanvas, createBlankCanvas } = useCreateBlankCanvas();
   const resultContainerRef = useRef<HTMLDivElement>(null);
   const imageKey = currentImage
@@ -178,6 +180,20 @@ export function Canvas() {
         </div>
       ) : null}
       <div className={`progress-bar${activeGenerations > 0 ? " active" : ""}`} />
+      
+      <button
+        type="button"
+        className="canvas__history-view-btn"
+        onClick={() => setHistoryModalOpen(true)}
+        title={t("history.openGalleryTitle")}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+        <span>{t("history.viewHistory")}</span>
+      </button>
+
       {multimodeSequence ? (
         <MultimodeSequencePreview />
       ) : currentImage && imageSrc ? (
@@ -279,6 +295,7 @@ export function Canvas() {
           </button>
         </div>
       ) : null}
+      <VideoHistoryModal isOpen={historyModalOpen} onClose={() => setHistoryModalOpen(false)} />
     </main>
   );
 }

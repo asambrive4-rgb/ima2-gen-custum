@@ -1,3 +1,4 @@
+import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { randomBytes } from "crypto";
@@ -50,6 +51,115 @@ async function resolveSourceImage(
     return { b64: sourceImage, filename: null };
   }
   return { b64: null, filename: null };
+}
+
+/**
+ * Normalizes an image input into a pure base64 string.
+ * Supports:
+ * - Pure base64 strings
+ * - Data URLs (extracts prefix)
+ * - Reference Library URLs (reads from referenceLibraryDir)
+ * - Generated/History URLs (reads from generatedDir)
+ * 
+ * Performs validation:
+ * - Empty string check
+ * - Base64 charset check
+ * - Decode buffer check
+ * - JPEG/PNG/WEBP magic bytes check
+ */
+async function normalizeImageBase64(input: unknown, ctx: RuntimeContext): Promise<string> {
+  const badImageErr = new Error("참조 이미지 데이터가 올바르지 않습니다. 보관함 이미지를 다시 저장하거나 JPG로 다시 업로드해 주세요.");
+
+  if (typeof input !== "string" || !input.trim()) {
+    throw badImageErr;
+  }
+
+  let str = input.trim();
+
+  // 1. Data URL prefix check
+  if (str.startsWith("data:")) {
+    const commaIndex = str.indexOf(",");
+    if (commaIndex === -1) {
+      throw badImageErr;
+    }
+    str = str.slice(commaIndex + 1).trim();
+  }
+
+  // 2. URL detection and file-based resolution
+  const isUrl =
+    str.startsWith("/") ||
+    str.startsWith("http://") ||
+    str.startsWith("https://") ||
+    str.startsWith("blob:") ||
+    str.startsWith("data:") ||
+    /[\\/]/.test(str);
+
+  if (isUrl) {
+    let filePath = "";
+
+    if (str.startsWith("/reference-library/") || str.startsWith("/api/reference-library/")) {
+      const filename = str.substring(str.lastIndexOf("/") + 1);
+      const safe = filename.replace(/^\/+/, "");
+      if (safe.includes("..")) {
+        throw badImageErr;
+      }
+      filePath = join(ctx.config.storage.referenceLibraryDir, safe);
+    } else if (str.startsWith("/generated/")) {
+      const filename = str.substring(str.lastIndexOf("/") + 1);
+      const safe = filename.replace(/^\/+/, "");
+      if (safe.includes("..")) {
+        throw badImageErr;
+      }
+      filePath = join(ctx.config.storage.generatedDir, safe);
+    } else {
+      throw badImageErr;
+    }
+
+    if (!filePath || !existsSync(filePath)) {
+      throw badImageErr;
+    }
+
+    try {
+      const buf = await readFile(filePath);
+      str = buf.toString("base64");
+    } catch (err) {
+      throw badImageErr;
+    }
+  }
+
+  // Remove whitespace/newlines from base64 string
+  str = str.replace(/\s+/g, "");
+
+  // 3. Base64 charset check
+  const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
+  if (!base64Regex.test(str)) {
+    throw badImageErr;
+  }
+
+  // 4. Decode buffer and check length
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(str, "base64");
+  } catch (err) {
+    throw badImageErr;
+  }
+
+  if (buffer.length === 0) {
+    throw badImageErr;
+  }
+
+  // 5. PNG/JPEG/WEBP magic bytes check
+  const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng = buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 && buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a;
+  const isWebp = buffer.length >= 12 &&
+    buffer.toString("binary", 0, 4) === "RIFF" &&
+    buffer.toString("binary", 8, 12) === "WEBP";
+
+  if (!isJpeg && !isPng && !isWebp) {
+    throw badImageErr;
+  }
+
+  return str;
 }
 
 export function registerVideoRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
@@ -108,10 +218,20 @@ export function registerVideoRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       ];
       let resolved: Array<{ b64: string; filename: string | null }>;
       try {
-        const all = await Promise.all(refInputs.map((r) => resolveSourceImage(ctx, r.image, r.filename)));
+        const all = await Promise.all(
+          refInputs.map(async (r) => {
+            const resImg = await resolveSourceImage(ctx, r.image, r.filename);
+            if (resImg.b64) {
+              const normalizedB64 = await normalizeImageBase64(resImg.b64, ctx);
+              return { b64: normalizedB64, filename: resImg.filename };
+            }
+            return { b64: null, filename: null };
+          })
+        );
         resolved = all.filter((r): r is { b64: string; filename: string | null } => Boolean(r.b64));
       } catch (e: any) {
-        return fail(e?.status || 400, e?.code || "GROK_VIDEO_INVALID_MODE", e?.message || "invalid reference image");
+        const errMsg = e instanceof Error ? e.message : "참조 이미지 데이터가 올바르지 않습니다. 보관함 이미지를 다시 저장하거나 JPG로 다시 업로드해 주세요.";
+        return fail(400, "GROK_VIDEO_INVALID_IMAGE", errMsg);
       }
       if (resolved.length > MAX_REF2V_REFERENCES) return fail(400, "GROK_VIDEO_REF_TOO_MANY", `at most ${MAX_REF2V_REFERENCES} reference images`);
       const mode: VideoMode = deriveVideoMode(resolved.length);

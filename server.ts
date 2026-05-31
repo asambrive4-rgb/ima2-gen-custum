@@ -96,6 +96,10 @@ export function buildApp(ctx: RuntimeContext) {
     maxAge: ctx.config.storage.staticMaxAge,
     immutable: true,
   }));
+  app.use("/reference-library", express.static(ctx.config.storage.referenceLibraryDir, {
+    maxAge: ctx.config.storage.staticMaxAge,
+    immutable: true,
+  }));
   configureRoutes(app, ctx);
   return app;
 }

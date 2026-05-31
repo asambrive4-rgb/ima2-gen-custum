@@ -1148,3 +1148,84 @@ export async function postVideoGenerateStream(
   }
   return done;
 }
+
+export interface ReferenceLibraryItem {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  hash: string;
+  url: string;
+  createdAt: number;
+  lastUsedAt: number;
+}
+
+export function listReferenceLibrary(): Promise<{ success: boolean; items: ReferenceLibraryItem[] }> {
+  return jsonFetch("/api/reference-library");
+}
+
+export function saveReferenceImageToLibrary(payload: {
+  filename: string;
+  base64: string;
+}): Promise<{ success: boolean; item: ReferenceLibraryItem }> {
+  return jsonFetch("/api/reference-library", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteReferenceLibraryItem(id: string): Promise<{ success: boolean }> {
+  return jsonFetch(`/api/reference-library/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export function clearReferenceLibrary(): Promise<{ success: boolean }> {
+  return jsonFetch("/api/reference-library", {
+    method: "DELETE",
+  });
+}
+
+export function useReferenceLibraryItem(id: string): Promise<{ success: boolean; item: ReferenceLibraryItem }> {
+  return jsonFetch(`/api/reference-library/${encodeURIComponent(id)}/use`, {
+    method: "POST",
+  });
+}
+
+export async function uploadReferenceLibraryImage(file: File): Promise<{ success: boolean; item: ReferenceLibraryItem }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch("/api/reference-library/upload", {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    throw new Error("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.");
+  }
+  return res.json();
+}
+
+export type VideoHistoryItem = {
+  id: string;
+  prompt: string;
+  videoUrl: string;
+  createdAt: number;
+  duration: number | null;
+  resolution: string | null;
+  aspectRatio: string | null;
+};
+
+export type VideoHistoryResponse = {
+  items: VideoHistoryItem[];
+  total: number;
+  hasMore: boolean;
+};
+
+export function getVideoHistory(limit = 20, offset = 0): Promise<VideoHistoryResponse> {
+  return jsonFetch<VideoHistoryResponse>(`/api/history/videos?limit=${limit}&offset=${offset}`);
+}
+

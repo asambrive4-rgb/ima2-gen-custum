@@ -216,6 +216,23 @@ function migrate(database: Database.Database) {
 
   // ── Prompt Library (schema v4) ──
   database.exec(`
+    CREATE TABLE IF NOT EXISTS reference_library (
+      id            TEXT PRIMARY KEY,
+      filename      TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type     TEXT NOT NULL,
+      size_bytes    INTEGER NOT NULL,
+      width         INTEGER,
+      height        INTEGER,
+      hash          TEXT NOT NULL,
+      url           TEXT NOT NULL,
+      created_at    INTEGER NOT NULL,
+      last_used_at  INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ref_library_hash ON reference_library(hash);
+    CREATE INDEX IF NOT EXISTS idx_ref_library_used ON reference_library(last_used_at);
+
     CREATE TABLE IF NOT EXISTS prompt_folders (
       id          TEXT PRIMARY KEY,
       parent_id   TEXT NOT NULL,

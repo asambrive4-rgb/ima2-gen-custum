@@ -27,7 +27,6 @@ export function PromptComposer({ variant = "sidebar" }: PromptComposerProps) {
   const refs = useAppStore((s) => s.referenceImages);
   const addReferences = useAppStore((s) => s.addReferences);
   const readDroppedImageMetadata = useAppStore((s) => s.readDroppedImageMetadata);
-  const removeReference = useAppStore((s) => s.removeReference);
   const useCurrentAsReference = useAppStore((s) => s.useCurrentAsReference);
   const currentImage = useAppStore((s) => s.currentImage);
 
@@ -220,31 +219,10 @@ export function PromptComposer({ variant = "sidebar" }: PromptComposerProps) {
               {t("prompt.directModeActive")}
             </span>
           )}
-          {refs.length > 0 && (
-            <span className="composer__count">
-              {t("prompt.refCount", { count: refs.length, max: MAX_REFS })}
-            </span>
-          )}
         </div>
       </div>
 
-      {refs.length > 0 && (
-        <div className="composer__chips">
-          {refs.map((src, i) => (
-            <div key={i} className="composer__chip" title={t("prompt.refChipTitle", { n: i + 1 })}>
-              <img src={src} alt={t("prompt.refChipAlt", { n: i + 1 })} loading="lazy" decoding="async" />
-              <button
-                type="button"
-                className="composer__chip-remove"
-                onClick={() => removeReference(i)}
-                aria-label={t("prompt.refRemoveAria", { n: i + 1 })}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+
 
       {beforePrompts.length > 0 && (
         <div className="composer__prompt-chips">

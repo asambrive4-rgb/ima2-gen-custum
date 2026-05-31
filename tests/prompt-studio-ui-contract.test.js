@@ -161,7 +161,7 @@ describe("prompt studio UI contract", () => {
     assert.match(promptComposer, /window\.getComputedStyle\(el\)\.maxHeight/);
     assert.match(promptComposer, /Math\.min\(.*scrollHeight.*,.*maxHeight/);
     assert.match(css, /grid-template-rows:\s*minmax\(280px, 1fr\) auto/);
-    assert.match(css, /\.classic-workspace__dock\s*\{[\s\S]*?max-height:\s*min\(34dvh, 260px\)/);
+    assert.match(css, /\.classic-workspace__dock\s*\{[\s\S]*?max-height:\s*min\(65dvh, 550px\)/);
     assert.match(css, /\.classic-workspace__dock\s*\{[\s\S]*?overflow:\s*hidden/);
     assert.match(css, /\.composer--bottom\s*\{[\s\S]*?--composer-textarea-max-height:\s*148px/);
     assert.match(css, /\.composer--bottom \.composer__prompt-chips\s*\{[\s\S]*?max-height:\s*min\(10dvh, 82px\)/);

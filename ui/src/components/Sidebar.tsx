@@ -1,5 +1,6 @@
 import { UIModeSwitch } from "./UIModeSwitch";
 import { PromptComposer } from "./PromptComposer";
+import { ReferenceImageCard } from "./ReferenceImageCard";
 import { GenerateButton } from "./GenerateButton";
 import { InFlightList } from "./InFlightList";
 import { SessionPicker } from "./SessionPicker";
@@ -55,6 +56,7 @@ export function SidebarStack() {
           </>
         ) : (
           <>
+            <ReferenceImageCard />
             <PromptComposer />
             <GenerateButton />
             <InFlightList />

@@ -1,4 +1,4 @@
-﻿// All localStorage keys this store touches MUST be listed in
+// All localStorage keys this store touches MUST be listed in
 // ./persistenceRegistry.ts. The contract test
 // tests/settings-persistence-contract.test.js enforces this invariant.
 // Legacy generation-controls contract: GENERATION_DEFAULTS_STORAGE_KEY = "ima2.generationDefaults".
@@ -54,6 +54,12 @@ import {
   toggleGalleryFavorite,
   importPromptLibrary,
   importLocalImage,
+  listReferenceLibrary,
+  saveReferenceImageToLibrary,
+  deleteReferenceLibraryItem,
+  clearReferenceLibrary as apiClearReferenceLibrary,
+  useReferenceLibraryItem,
+  uploadReferenceLibraryImage,
   type HistoryCursor,
   type SessionSummary,
   type SessionFull,
@@ -681,6 +687,7 @@ async function compressReferenceSource(src: string, filename = "reference.png"):
     // Generated PNGs can exceed the server's base64 reference cap. For i2i
     // references, a flattened JPEG is the intended upload format.
     preserveTransparency: false,
+    isVideoMode: useAppStore.getState().videoModelSelected,
   });
 }
 
@@ -1155,6 +1162,14 @@ type AppState = {
   resetCanvasPan: () => void;
   setCanvasExportBackground: (mode: CanvasExportBackground) => void;
   setCanvasExportMatteColor: (color: HexColor) => void;
+  referenceLibraryItems: import("../lib/api").ReferenceLibraryItem[];
+  referenceLibraryLoading: boolean;
+  loadReferenceLibrary: () => Promise<void>;
+  addLibraryItemAsReference: (item: import("../lib/api").ReferenceLibraryItem) => Promise<void>;
+  deleteLibraryItem: (id: string) => Promise<void>;
+  clearReferenceLibrary: () => Promise<void>;
+  referenceLibraryUploading: boolean;
+  uploadLibraryImage: (file: File, autoUse: boolean) => Promise<void>;
 };
 
 function formatSize(w: number, h: number): string {
@@ -1324,8 +1339,7 @@ function getCustomSizeConfirmation(
 
 const storedGenerationDefaults = loadGenerationDefaults();
 const storedImageModel = loadImageModel();
-const initialProvider =
-  isGrokImageModel(storedImageModel) ? "grok" : (storedGenerationDefaults.provider ?? "oauth") === "grok" ? "oauth" : (storedGenerationDefaults.provider ?? "oauth");
+const initialProvider = "grok";
 
 export const useAppStore = create<AppState>((set, get) => ({
   provider: initialProvider,
@@ -1375,14 +1389,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     const toAdd = files.slice(0, Math.max(0, allowed));
     const heicSkipped = toAdd.filter(isHeic);
     const usable = toAdd.filter((f) => !isHeic(f));
+    let lastErrorMsg = "";
     const results = await Promise.all(
       usable.map(async (f) => {
         try {
-          return await compressToBase64(f, {
+          const base64 = await compressToBase64(f, {
             preserveTransparency: false,
+            isVideoMode: get().videoModelSelected,
           });
+          void (async () => {
+            try {
+              await saveReferenceImageToLibrary({ filename: f.name, base64 });
+              void get().loadReferenceLibrary();
+            } catch (saveErr) {
+              console.warn("[addReferences] Auto-save to library failed:", saveErr);
+            }
+          })();
+          return base64;
         } catch (err) {
           console.warn("[addReferences] compress failed", err);
+          if (err instanceof Error) lastErrorMsg = err.message;
           return null;
         }
       }),
@@ -1396,7 +1422,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const failedCount = usable.length - valid.length;
     if (failedCount > 0) {
-      get().showToast(t("toast.refTooLarge"), true);
+      const msg = lastErrorMsg || t("toast.refTooLarge");
+      get().showToast(msg, true);
     }
     if (files.length > allowed) {
       get().showToast(t("toast.refLimitExceeded"), true);
@@ -2405,14 +2432,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     const toAdd = files.slice(0, Math.max(0, allowed));
     const heicSkipped = toAdd.filter(isHeic);
     const usable = toAdd.filter((f) => !isHeic(f));
+    let lastErrorMsg = "";
     const results = await Promise.all(
       usable.map(async (f) => {
         try {
-          return await compressToBase64(f, {
+          const base64 = await compressToBase64(f, {
             preserveTransparency: false,
+            isVideoMode: get().videoModelSelected,
           });
+          void (async () => {
+            try {
+              await saveReferenceImageToLibrary({ filename: f.name, base64 });
+              void get().loadReferenceLibrary();
+            } catch (saveErr) {
+              console.warn("[addNodeReferences] Auto-save to library failed:", saveErr);
+            }
+          })();
+          return base64;
         } catch (err) {
           console.warn("[addNodeReferences] compress failed", err);
+          if (err instanceof Error) lastErrorMsg = err.message;
           return null;
         }
       }),
@@ -2446,7 +2485,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const failedCount = usable.length - valid.length;
     if (failedCount > 0) {
-      get().showToast(t("toast.refTooLarge"), true);
+      const msg = lastErrorMsg || t("toast.refTooLarge");
+      get().showToast(msg, true);
     }
     if (files.length > allowed) {
       get().showToast(t("toast.refLimitExceeded"), true);
@@ -3057,9 +3097,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ imageModel });
   },
-  videoModelSelected: false,
-  videoDuration: 5,
-  videoResolution: "480p",
+  videoModelSelected: true,
+  videoDuration: 15,
+  videoResolution: "720p",
   videoAspectRatio: "auto",
   videoProgress: null,
   selectVideoModel: () => {
@@ -3069,6 +3109,102 @@ export const useAppStore = create<AppState>((set, get) => ({
   setVideoDuration: (videoDuration) => set({ videoDuration }),
   setVideoResolution: (videoResolution) => set({ videoResolution }),
   setVideoAspectRatio: (videoAspectRatio) => set({ videoAspectRatio }),
+  referenceLibraryItems: [],
+  referenceLibraryLoading: false,
+  loadReferenceLibrary: async () => {
+    set({ referenceLibraryLoading: true });
+    try {
+      const res = await listReferenceLibrary();
+      if (res.success) {
+        set({ referenceLibraryItems: res.items });
+      }
+    } catch (err) {
+      console.warn("[store] Failed to load reference library:", err);
+    } finally {
+      set({ referenceLibraryLoading: false });
+    }
+  },
+  addLibraryItemAsReference: async (item) => {
+    const allowed = MAX_REFERENCE_IMAGES - get().referenceImages.length;
+    if (allowed <= 0) {
+      get().showToast(t("toast.refSlotFull"), true);
+      return;
+    }
+    if (get().referenceImages.includes(item.url)) {
+      get().showToast(t("toast.addedCurrentAsRef"));
+      return;
+    }
+    try {
+      const res = await useReferenceLibraryItem(item.id);
+      if (res.success) {
+        set((s) => {
+          const withoutItem = s.referenceLibraryItems.filter((x) => x.id !== item.id);
+          return {
+            referenceLibraryItems: [res.item, ...withoutItem],
+            referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
+          };
+        });
+      } else {
+        set((s) => ({
+          referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
+        }));
+      }
+    } catch (err) {
+      console.warn("[store] Failed to update reference use timestamp:", err);
+      set((s) => ({
+        referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
+      }));
+    }
+    get().showToast("영상 참조 이미지로 추가되었습니다.");
+  },
+  deleteLibraryItem: async (id) => {
+    try {
+      const res = await deleteReferenceLibraryItem(id);
+      if (res.success) {
+        set((s) => ({
+          referenceLibraryItems: s.referenceLibraryItems.filter((x) => x.id !== id),
+        }));
+        get().showToast(t("common.delete"));
+      }
+    } catch (err) {
+      console.warn("[store] Failed to delete library item:", err);
+    }
+  },
+  clearReferenceLibrary: async () => {
+    try {
+      const res = await apiClearReferenceLibrary();
+      if (res.success) {
+        set({ referenceLibraryItems: [] });
+        get().showToast("보관함이 비워졌습니다.");
+      } else {
+        get().showToast("참조 이미지 보관함을 삭제하지 못했습니다.", true);
+      }
+    } catch (err) {
+      console.warn("[store] Failed to clear reference library:", err);
+      get().showToast("참조 이미지 보관함을 삭제하지 못했습니다.", true);
+    }
+  },
+  referenceLibraryUploading: false,
+  uploadLibraryImage: async (file, autoUse) => {
+    set({ referenceLibraryUploading: true });
+    try {
+      const res = await uploadReferenceLibraryImage(file);
+      if (res.success) {
+        get().showToast("참조 이미지 보관함에 저장되었습니다.");
+        await get().loadReferenceLibrary();
+        if (autoUse) {
+          await get().addLibraryItemAsReference(res.item);
+        }
+      } else {
+        get().showToast("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.", true);
+      }
+    } catch (err) {
+      console.warn("[store] Failed to upload reference library image:", err);
+      get().showToast("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.", true);
+    } finally {
+      set({ referenceLibraryUploading: false });
+    }
+  },
   activeVideoRefCount: () => {
     const s = get();
     if (s.uiMode === "node") {
@@ -3915,6 +4051,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   showToast(message, error = false) {
+    if (!error) return;
     const createdAt = Date.now();
     const entry = { message, error, id: createdAt + Math.random(), createdAt };
     set((s) => ({ toast: entry, toastLog: [...s.toastLog, entry] }));

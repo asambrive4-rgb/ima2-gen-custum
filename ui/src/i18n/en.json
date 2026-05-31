@@ -215,7 +215,9 @@
   },
   "generate": {
     "button": "Generate",
-    "buttonLoading": "Generating ({n})"
+    "buttonLoading": "Generating ({n})",
+    "videoButton": "Generate Video",
+    "videoButtonLoading": "Generating Video ({n})"
   },
   "billing": {
     "label": "API Status",
@@ -243,7 +245,11 @@
     "deleteImageAria": "Delete image from history",
     "deleteSequenceAria": "Delete {count}-image sequence",
     "deleteSequenceConfirm": "Delete all {count} images in this multimode sequence?",
-    "sequenceDeleted": "Deleted {count} sequence images from history"
+    "sequenceDeleted": "Deleted {count} sequence images from history",
+    "viewHistory": "View History",
+    "videoHistoryTitle": "Past Video History",
+    "moreHistory": "Load More",
+    "recentHistoryLimitHint": "Only the recent 20 results are shown. Past results can be viewed in History."
   },
   "panel": {
     "closeSettings": "Close settings",
@@ -272,7 +278,9 @@
     "moveBlockDown": "Move {name} down",
     "afterBlocks": "After main prompt",
     "hint": "Ctrl + Enter to generate",
-    "dropHere": "Drop to attach as reference (up to {max})"
+    "dropHere": "Drop to attach as reference (up to {max})",
+    "refCardTitle": "Reference Images",
+    "noRefsSelected": "No reference images selected."
   },
   "canvas": {
     "resultAlt": "result",

@@ -3,6 +3,7 @@ import { useAppStore } from "../store/useAppStore";
 import { useI18n } from "../i18n";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { PromptComposer } from "./PromptComposer";
+import { ReferenceImageCard } from "./ReferenceImageCard";
 import { GenerateButton } from "./GenerateButton";
 import { InFlightList } from "./InFlightList";
 import { GenerationControlsPanel } from "./GenerationControlsPanel";
@@ -82,6 +83,7 @@ export function MobileComposeSheet() {
         <div className="compose-sheet__body">
           {activeTab === "prompt" ? (
             <div className="compose-sheet__panel compose-sheet__panel--prompt" role="tabpanel">
+              <ReferenceImageCard />
               <PromptComposer />
               <GenerateButton />
               <InFlightList />

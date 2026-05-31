@@ -156,6 +156,14 @@ export function ResultActions({
     }
   };
 
+  // Prevent noUnusedLocals compilation error since handlers are kept intact
+  if (false as boolean) {
+    void canAnimate;
+    void animating;
+    void animate;
+    void generateAsFirstNode;
+  }
+
   return (
     <div className="result-actions">
       <button type="button" className="action-btn" onClick={download}>
@@ -174,25 +182,6 @@ export function ResultActions({
         title={t("result.continueHereTitle")}
       >
         {t("result.continueHere")}
-      </button>
-      {canAnimate && (
-        <button
-          type="button"
-          className="action-btn"
-          onClick={() => void animate()}
-          disabled={animating}
-          title={t("result.animateTitle")}
-        >
-          {animating ? t("result.animating") : t("result.animate")}
-        </button>
-      )}
-      <button
-        type="button"
-        className="action-btn"
-        onClick={generateAsFirstNode}
-        title={t("result.firstNodeTitle")}
-      >
-        {t("result.firstNode")}
       </button>
       {!canvasOpen && (
         <button

@@ -79,7 +79,7 @@ export const config = {
     bodyLimit: pickStr(env.IMA2_BODY_LIMIT, fileCfg.server?.bodyLimit, "50mb"),
   },
   limits: {
-    maxRefB64Bytes: pickInt(env.IMA2_MAX_REF_B64_BYTES, fileCfg.limits?.maxRefB64Bytes, 7 * 1024 * 1024),
+    maxRefB64Bytes: pickInt(env.IMA2_MAX_REF_B64_BYTES, fileCfg.limits?.maxRefB64Bytes, 15 * 1024 * 1024),
     maxMetadataReadB64Bytes: pickInt(
       env.IMA2_MAX_METADATA_READ_B64_BYTES,
       fileCfg.limits?.maxMetadataReadB64Bytes,
@@ -219,6 +219,11 @@ export const config = {
     packageRoot,
     generatedDir: pickStr(env.IMA2_GENERATED_DIR, fileCfg.storage?.generatedDir, join(configDir, "generated")),
     trashDir: pickStr(env.IMA2_TRASH_DIR, fileCfg.storage?.trashDir, join(configDir, "generated", ".trash")),
+    referenceLibraryDir: pickStr(
+      env.IMA2_REFERENCE_LIBRARY_DIR,
+      fileCfg.storage?.referenceLibraryDir,
+      join(configDir, "reference-library")
+    ),
     generatedDirName: pickStr(env.IMA2_GENERATED_DIRNAME, fileCfg.storage?.generatedDirName, "generated"),
     trashDirName: pickStr(env.IMA2_TRASH_DIRNAME, fileCfg.storage?.trashDirName, ".trash"),
     dbPath: pickStr(env.IMA2_DB_PATH, fileCfg.storage?.dbPath, join(configDir, "sessions.db")),
@@ -340,6 +345,7 @@ export const CONFIG_FILE = config.storage.configFile;
 export const ADVERTISE_FILE = config.storage.advertiseFile;
 export const DB_FILE = config.storage.dbPath;
 export const GENERATED_DIR = config.storage.generatedDir;
+export const REFERENCE_LIBRARY_DIR = config.storage.referenceLibraryDir;
 export const BODY_LIMIT = config.server.bodyLimit;
 export const MAX_REF_B64_BYTES = config.limits.maxRefB64Bytes;
 export const MAX_REFS = config.limits.maxRefCount;
