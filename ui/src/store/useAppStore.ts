@@ -1,4 +1,4 @@
-// All localStorage keys this store touches MUST be listed in
+﻿// All localStorage keys this store touches MUST be listed in
 // ./persistenceRegistry.ts. The contract test
 // tests/settings-persistence-contract.test.js enforces this invariant.
 // Legacy generation-controls contract: GENERATION_DEFAULTS_STORAGE_KEY = "ima2.generationDefaults".
@@ -66,7 +66,7 @@ import {
   type SessionGraphEdge,
 } from "../lib/api";
 import { compressImage, readFileAsDataURL } from "../lib/image";
-import { compressToBase64, isHeic } from "../lib/compress";
+import { compressToBase64, isHeic, hasAlphaChannel } from "../lib/compress";
 import {
   normalizeCustomSizePairDetailed,
   parseRequestedCustomSide,
@@ -687,7 +687,6 @@ async function compressReferenceSource(src: string, filename = "reference.png"):
     // Generated PNGs can exceed the server's base64 reference cap. For i2i
     // references, a flattened JPEG is the intended upload format.
     preserveTransparency: false,
-    isVideoMode: useAppStore.getState().videoModelSelected,
   });
 }
 
@@ -1162,14 +1161,6 @@ type AppState = {
   resetCanvasPan: () => void;
   setCanvasExportBackground: (mode: CanvasExportBackground) => void;
   setCanvasExportMatteColor: (color: HexColor) => void;
-  referenceLibraryItems: import("../lib/api").ReferenceLibraryItem[];
-  referenceLibraryLoading: boolean;
-  loadReferenceLibrary: () => Promise<void>;
-  addLibraryItemAsReference: (item: import("../lib/api").ReferenceLibraryItem) => Promise<void>;
-  deleteLibraryItem: (id: string) => Promise<void>;
-  clearReferenceLibrary: () => Promise<void>;
-  referenceLibraryUploading: boolean;
-  uploadLibraryImage: (file: File, autoUse: boolean) => Promise<void>;
 };
 
 function formatSize(w: number, h: number): string {
@@ -1339,7 +1330,8 @@ function getCustomSizeConfirmation(
 
 const storedGenerationDefaults = loadGenerationDefaults();
 const storedImageModel = loadImageModel();
-const initialProvider = "grok";
+const initialProvider =
+  isGrokImageModel(storedImageModel) ? "grok" : (storedGenerationDefaults.provider ?? "oauth") === "grok" ? "oauth" : (storedGenerationDefaults.provider ?? "oauth");
 
 export const useAppStore = create<AppState>((set, get) => ({
   provider: initialProvider,
@@ -1389,26 +1381,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const toAdd = files.slice(0, Math.max(0, allowed));
     const heicSkipped = toAdd.filter(isHeic);
     const usable = toAdd.filter((f) => !isHeic(f));
-    let lastErrorMsg = "";
     const results = await Promise.all(
       usable.map(async (f) => {
         try {
-          const base64 = await compressToBase64(f, {
-            preserveTransparency: false,
-            isVideoMode: get().videoModelSelected,
+          return await compressToBase64(f, {
+            preserveTransparency: hasAlphaChannel(f),
           });
-          void (async () => {
-            try {
-              await saveReferenceImageToLibrary({ filename: f.name, base64 });
-              void get().loadReferenceLibrary();
-            } catch (saveErr) {
-              console.warn("[addReferences] Auto-save to library failed:", saveErr);
-            }
-          })();
-          return base64;
         } catch (err) {
           console.warn("[addReferences] compress failed", err);
-          if (err instanceof Error) lastErrorMsg = err.message;
           return null;
         }
       }),
@@ -1422,8 +1402,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const failedCount = usable.length - valid.length;
     if (failedCount > 0) {
-      const msg = lastErrorMsg || t("toast.refTooLarge");
-      get().showToast(msg, true);
+      get().showToast(t("toast.refTooLarge"), true);
     }
     if (files.length > allowed) {
       get().showToast(t("toast.refLimitExceeded"), true);
@@ -1612,7 +1591,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const nextInflight: typeof cur = [];
         for (const f of get().inFlight) {
           // Out-of-scope entries (different kind/session) must not be dropped
-          // based on this tick's byId ??the server wasn't asked about them.
+          // based on this tick's byId — the server wasn't asked about them.
           if (!matchesInflightScope(f, scopes)) {
             nextInflight.push(f);
             continue;
@@ -1709,7 +1688,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
         }
         // Prune strategy: TTL-based only. Do not attempt to correlate
-        // history items with inFlight entries ??backend ordering may differ
+        // history items with inFlight entries — backend ordering may differ
         // from local generation order under concurrency. Matching by prompt
         // is also unreliable when the same prompt is queued twice.
         const now = Date.now();
@@ -1735,7 +1714,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const currentLocal = get().inFlight;
       const local = currentLocal.length > 0 ? currentLocal : loadInFlight();
       // Keep local entries that are either still known to the server,
-      // or started very recently (<10s ??request may be in-flight before
+      // or started very recently (<10s — request may be in-flight before
       // /api/inflight registered). Keep out-of-scope entries because this
       // request only asked the server about the current mode/session.
       const merged = local.flatMap((f) => {
@@ -1768,7 +1747,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       if (merged.length > 0) get().startInFlightPolling();
     } catch {
-      // Silent ??endpoint may not exist on older servers.
+      // Silent — endpoint may not exist on older servers.
     }
   },
   syncFromStorage: () => {
@@ -2152,7 +2131,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             data: { ...n.data, status: "reconciling" as const, pendingPhase: phase },
           };
         }
-        // Not in-flight anymore. Apply B grace window if we know when it started ??        // the server may have just finished and the response is still en route.
+        // Not in-flight anymore. Apply B grace window if we know when it started —
+        // the server may have just finished and the response is still en route.
         const startedAt = n.data.pendingStartedAt ?? 0;
         if (startedAt && now - startedAt < GRACE_MS) {
           return {
@@ -2432,26 +2412,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const toAdd = files.slice(0, Math.max(0, allowed));
     const heicSkipped = toAdd.filter(isHeic);
     const usable = toAdd.filter((f) => !isHeic(f));
-    let lastErrorMsg = "";
     const results = await Promise.all(
       usable.map(async (f) => {
         try {
-          const base64 = await compressToBase64(f, {
-            preserveTransparency: false,
-            isVideoMode: get().videoModelSelected,
+          return await compressToBase64(f, {
+            preserveTransparency: hasAlphaChannel(f),
           });
-          void (async () => {
-            try {
-              await saveReferenceImageToLibrary({ filename: f.name, base64 });
-              void get().loadReferenceLibrary();
-            } catch (saveErr) {
-              console.warn("[addNodeReferences] Auto-save to library failed:", saveErr);
-            }
-          })();
-          return base64;
         } catch (err) {
           console.warn("[addNodeReferences] compress failed", err);
-          if (err instanceof Error) lastErrorMsg = err.message;
           return null;
         }
       }),
@@ -2485,8 +2453,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const failedCount = usable.length - valid.length;
     if (failedCount > 0) {
-      const msg = lastErrorMsg || t("toast.refTooLarge");
-      get().showToast(msg, true);
+      get().showToast(t("toast.refTooLarge"), true);
     }
     if (files.length > allowed) {
       get().showToast(t("toast.refLimitExceeded"), true);
@@ -2571,7 +2538,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         pendingPhase: null,
       },
     };
-    // no parent edge ??becomes a new branch root at root layer
+    // no parent edge — becomes a new branch root at root layer
     void rootSiblings;
     set({ graphNodes: [...get().graphNodes, node] });
     get().scheduleGraphSave();
@@ -2698,7 +2665,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Capture request session so a later session switch does not corrupt graph B.
     const requestSessionId = s.activeSessionId;
-    // mark pending ??request-unique flightId so retries on the same node don't collide.
+    // mark pending — request-unique flightId so retries on the same node don't collide.
     const startedAt = Date.now();
     const randSuffix = Math.random().toString(36).slice(2, 6);
     const flightId = `fn_${clientId}_${startedAt}_${randSuffix}`;
@@ -2855,7 +2822,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         graphMutated = true;
         handleError(err, get());
       }
-      // cross-session: silent ??user is on a different graph
+      // cross-session: silent — user is on a different graph
       return null;
     } finally {
       // Global state cleanup must always run regardless of active session,
@@ -3097,9 +3064,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ imageModel });
   },
-  videoModelSelected: true,
-  videoDuration: 15,
-  videoResolution: "720p",
+  videoModelSelected: false,
+  videoDuration: 5,
+  videoResolution: "480p",
   videoAspectRatio: "auto",
   videoProgress: null,
   selectVideoModel: () => {
@@ -3109,102 +3076,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setVideoDuration: (videoDuration) => set({ videoDuration }),
   setVideoResolution: (videoResolution) => set({ videoResolution }),
   setVideoAspectRatio: (videoAspectRatio) => set({ videoAspectRatio }),
-  referenceLibraryItems: [],
-  referenceLibraryLoading: false,
-  loadReferenceLibrary: async () => {
-    set({ referenceLibraryLoading: true });
-    try {
-      const res = await listReferenceLibrary();
-      if (res.success) {
-        set({ referenceLibraryItems: res.items });
-      }
-    } catch (err) {
-      console.warn("[store] Failed to load reference library:", err);
-    } finally {
-      set({ referenceLibraryLoading: false });
-    }
-  },
-  addLibraryItemAsReference: async (item) => {
-    const allowed = MAX_REFERENCE_IMAGES - get().referenceImages.length;
-    if (allowed <= 0) {
-      get().showToast(t("toast.refSlotFull"), true);
-      return;
-    }
-    if (get().referenceImages.includes(item.url)) {
-      get().showToast(t("toast.addedCurrentAsRef"));
-      return;
-    }
-    try {
-      const res = await useReferenceLibraryItem(item.id);
-      if (res.success) {
-        set((s) => {
-          const withoutItem = s.referenceLibraryItems.filter((x) => x.id !== item.id);
-          return {
-            referenceLibraryItems: [res.item, ...withoutItem],
-            referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
-          };
-        });
-      } else {
-        set((s) => ({
-          referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
-        }));
-      }
-    } catch (err) {
-      console.warn("[store] Failed to update reference use timestamp:", err);
-      set((s) => ({
-        referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
-      }));
-    }
-    get().showToast("영상 참조 이미지로 추가되었습니다.");
-  },
-  deleteLibraryItem: async (id) => {
-    try {
-      const res = await deleteReferenceLibraryItem(id);
-      if (res.success) {
-        set((s) => ({
-          referenceLibraryItems: s.referenceLibraryItems.filter((x) => x.id !== id),
-        }));
-        get().showToast(t("common.delete"));
-      }
-    } catch (err) {
-      console.warn("[store] Failed to delete library item:", err);
-    }
-  },
-  clearReferenceLibrary: async () => {
-    try {
-      const res = await apiClearReferenceLibrary();
-      if (res.success) {
-        set({ referenceLibraryItems: [] });
-        get().showToast("보관함이 비워졌습니다.");
-      } else {
-        get().showToast("참조 이미지 보관함을 삭제하지 못했습니다.", true);
-      }
-    } catch (err) {
-      console.warn("[store] Failed to clear reference library:", err);
-      get().showToast("참조 이미지 보관함을 삭제하지 못했습니다.", true);
-    }
-  },
-  referenceLibraryUploading: false,
-  uploadLibraryImage: async (file, autoUse) => {
-    set({ referenceLibraryUploading: true });
-    try {
-      const res = await uploadReferenceLibraryImage(file);
-      if (res.success) {
-        get().showToast("참조 이미지 보관함에 저장되었습니다.");
-        await get().loadReferenceLibrary();
-        if (autoUse) {
-          await get().addLibraryItemAsReference(res.item);
-        }
-      } else {
-        get().showToast("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.", true);
-      }
-    } catch (err) {
-      console.warn("[store] Failed to upload reference library image:", err);
-      get().showToast("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.", true);
-    } finally {
-      set({ referenceLibraryUploading: false });
-    }
-  },
   activeVideoRefCount: () => {
     const s = get();
     if (s.uiMode === "node") {
@@ -4051,7 +3922,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   showToast(message, error = false) {
-    if (!error) return;
     const createdAt = Date.now();
     const entry = { message, error, id: createdAt + Math.random(), createdAt };
     set((s) => ({ toast: entry, toastLog: [...s.toastLog, entry] }));
@@ -4081,7 +3951,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  // ?? Workspace Profile actions ??
+  // ── Workspace Profile actions ──
   setWorkspaceProfile(profile) {
     set({ workspaceProfile: profile });
     try { localStorage.setItem("ima2.workspaceProfile", profile); } catch { /* non-critical */ }
@@ -4090,7 +3960,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ promptBuilderOpen: !s.promptBuilderOpen }));
   },
 
-  // ?? Prompt Library actions (0.23) ??
+  // ── Prompt Library actions (0.23) ──
   setPromptLibraryOpen(open) {
     set({ promptLibraryOpen: open });
   },
@@ -4204,7 +4074,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-// ?? Graph autosave (module-level debounce) ??
+// ── Graph autosave (module-level debounce) ──
 const SAVE_DEBOUNCE_MS = 800;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let isSavingGraph = false;
@@ -4225,7 +4095,7 @@ function getGraphTabId(): string {
 }
 
 // Sanitize a node's data for PUT /api/sessions/:id/graph payload.
-// pending / reconciling states are *transient* ??persisting them to disk
+// pending / reconciling states are *transient* — persisting them to disk
 // makes reloaded graphs look like aborted work and trips reconcileGraphPending.
 // This function is payload-only: the in-memory `graphNodes` is NOT touched.
 function sanitizeForSave(d: ImageNodeData): Record<string, unknown> {
@@ -4288,7 +4158,7 @@ async function recoverGraphNodesFromHistory(
     const res = await getHistory({ sessionId: sid, limit: HISTORY_LIMIT });
     items = res.items;
   } catch {
-    // History fetch failure is non-fatal ??leave nodes as they are.
+    // History fetch failure is non-fatal — leave nodes as they are.
     return;
   }
 
@@ -4317,7 +4187,7 @@ async function recoverGraphNodesFromHistory(
       data: {
         ...n.data,
         status: "ready" as const,
-        imageUrl: recovered.url, // canonical ??jpeg/webp all covered
+        imageUrl: recovered.url, // canonical — jpeg/webp all covered
         serverNodeId: recovered.nodeId ?? n.data.serverNodeId,
         size: recovered.size ?? n.data.size ?? null,
         elapsed: recovered.elapsed ?? n.data.elapsed,
@@ -4533,4 +4403,3 @@ export function selectCurrentSessionId(state: AppState): string | null {
   }
   return null;
 }
-

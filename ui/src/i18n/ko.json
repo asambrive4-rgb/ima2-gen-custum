@@ -71,6 +71,7 @@
   },
   "inflight": {
     "queued": "대기 중",
+    "planning": "프롬프트 생성 중",
     "streaming": "생성 중",
     "decoding": "마무리 중",
     "canceling": "취소 중",
@@ -905,7 +906,8 @@
       "unsupportedHelp": "Grok 모델은 번들된 로컬 프록시를 통해 xAI Images API를 사용합니다. GPT 모델은 OpenAI Responses 이미지 생성을 사용합니다."
     },
     "videoModel": {
-      "grokImagine": "Grok Imagine Video"
+      "grokImagine": "Grok Imagine Video",
+      "grokImagine15": "Grok Imagine Video 1.5"
     },
     "reasoning": {
       "title": "추론 강도",

@@ -70,7 +70,23 @@ export function ResultActions({
     try {
       const res = await fetch(actionImage.image);
       const blob = await res.blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      let pngBlob: Blob;
+      if (blob.type === "image/png") {
+        pngBlob = blob;
+      } else {
+        // Convert to PNG for clipboard compatibility
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        const url = URL.createObjectURL(blob);
+        await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = reject; img.src = url; });
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext("2d")!.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        pngBlob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(), "image/png"));
+      }
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]);
       showToast(t("toast.imageCopied"));
     } catch {
       showToast(t("toast.copyFailed"), true);
@@ -90,6 +106,11 @@ export function ResultActions({
       if (isVideoItem(actionImage)) {
         const frameDataUrl = await extractLastFrame(actionImage.image);
         useAppStore.getState().addReferenceDataUrl(frameDataUrl);
+        // Load video series topic if present
+        const meta = (actionImage as any).videoSeries;
+        if (meta?.topic) {
+          useAppStore.getState().setVideoTopic(meta.topic);
+        }
       } else {
         await useImageAsReference(actionImage);
       }

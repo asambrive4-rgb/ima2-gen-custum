@@ -4,6 +4,7 @@ import { useAppStore, type ImageNodeData, type GraphNode } from "../store/useApp
 import { useI18n } from "../i18n";
 import { getImageModelShortLabel } from "../lib/imageModels";
 import { formatReasoningLabel } from "../lib/reasoning";
+import { isVideoUrl } from "../lib/videoMedia";
 import { SavePromptPopover } from "./SavePromptPopover";
 
 const MAX_NODE_REFS = 5;
@@ -41,6 +42,7 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
   const generateNode = useAppStore((s) => s.generateNode);
   const generateNodeInPlace = useAppStore((s) => s.generateNodeInPlace);
   const generateNodeVariation = useAppStore((s) => s.generateNodeVariation);
+  const animateImage = useAppStore((s) => s.animateImage);
   const addChildNode = useAppStore((s) => s.addChildNode);
   const duplicateBranchRoot = useAppStore((s) => s.duplicateBranchRoot);
   const deleteNode = useAppStore((s) => s.deleteNode);
@@ -76,6 +78,12 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
     if (d.status !== "ready") return;
     addChildNode(id);
   }, [id, d.status, addChildNode]);
+
+  const onAnimate = useCallback(() => {
+    if (d.status !== "ready" || !d.imageUrl || isVideoUrl(d.imageUrl)) return;
+    const filename = d.imageUrl.replace(/^\/generated\//, "");
+    void animateImage(filename, d.prompt);
+  }, [d.status, d.imageUrl, d.prompt, animateImage]);
 
   const onDuplicateBranch = useCallback(() => {
     duplicateBranchRoot(id);
@@ -158,6 +166,9 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
               searches: d.webSearchCalls,
             })
             : t("node.ready", { elapsed: d.elapsed ?? "?" }),
+          d.video?.duration ? `${d.video.duration}s` : null,
+          d.video?.resolution ?? null,
+          d.video?.aspectRatio ?? null,
           formatReasoningLabel(d.reasoningEffort),
           getImageModelShortLabel(d.model),
         ].filter(Boolean).join(" · ");
@@ -193,7 +204,11 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
       ))}
       <div className="image-node__preview">
         {d.imageUrl && d.status !== "asset-missing" ? (
-          <img src={d.imageUrl} alt={t("node.nodeImageAlt")} />
+          isVideoUrl(d.imageUrl) ? (
+            <video src={d.imageUrl} controls loop playsInline muted className="image-node__video nodrag" />
+          ) : (
+            <img src={d.imageUrl} alt={t("node.nodeImageAlt")} />
+          )
         ) : isBusy && d.partialImageUrl ? (
           <img
             className="image-node__partial"
@@ -305,6 +320,11 @@ function ImageNodeImpl({ id, data, selected }: NodeProps<GraphNode>) {
               <button type="button" onClick={onNewVariation} disabled={isBusy} title={t("node.newVariationTitle")} aria-label={t("node.newVariationTitle")}>
                 {t("node.newVariation")}
               </button>
+              {!isVideoUrl(d.imageUrl) && (
+                <button type="button" onClick={onAnimate} disabled={isBusy} title={t("node.animateTitle", { fallback: "Animate" })} aria-label={t("node.animateTitle", { fallback: "Animate" })}>
+                  ▶
+                </button>
+              )}
             </>
           ) : (
             <button

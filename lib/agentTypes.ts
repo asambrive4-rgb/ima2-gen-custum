@@ -2,6 +2,7 @@ export const AGENT_ALLOWED_TOOLS = [
   "ima2.get_image_context",
   "ima2.web_search",
   "ima2.generate_image",
+  "ima2.generate_video",
 ] as const;
 
 export type AgentToolName = typeof AGENT_ALLOWED_TOOLS[number];
@@ -11,7 +12,7 @@ export type AgentToolCallStatus = "queued" | "running" | "complete" | "error";
 export type AgentQueueStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 export type AgentSessionRunStatus = "idle" | "queued" | "running" | "error";
 export type AgentGenerationStrategy = "auto" | "manual";
-export type AgentGenerationPlanMode = "single" | "fanout" | "question";
+export type AgentGenerationPlanMode = "single" | "fanout" | "question" | "video";
 export type AgentGenerationPlanSource = "auto-default" | "auto-request" | "manual-settings" | "slash-command" | "question-command";
 export type AgentSlashCommandName = "question" | "help" | "variants" | "generate" | "parallelism";
 
