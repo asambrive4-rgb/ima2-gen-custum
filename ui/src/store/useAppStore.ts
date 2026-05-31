@@ -687,7 +687,7 @@ async function compressReferenceSource(src: string, filename = "reference.png"):
     // Generated PNGs can exceed the server's base64 reference cap. For i2i
     // references, a flattened JPEG is the intended upload format.
     preserveTransparency: false,
-    isVideoMode: useAppStore.getState().videoModelSelected,
+    isVideoMode: Boolean(useAppStore.getState().videoModelSelected),
   });
 }
 
@@ -1072,12 +1072,12 @@ type AppState = {
   setModeration: (m: Moderation) => void;
   setImageModel: (m: ImageModel) => void;
   // Video generation (Grok reference-to-video / I2V / T2V)
-  videoModelSelected: boolean;
+  videoModelSelected: string | false;
   videoDuration: number;
   videoResolution: VideoResolutionUI;
   videoAspectRatio: string;
   videoProgress: number | null;
-  selectVideoModel: () => void;
+  selectVideoModel: (model?: string) => void;
   setVideoDuration: (n: number) => void;
   setVideoResolution: (r: VideoResolutionUI) => void;
   setVideoAspectRatio: (a: string) => void;
@@ -1395,7 +1395,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const base64 = await compressToBase64(f, {
             preserveTransparency: false,
-            isVideoMode: get().videoModelSelected,
+            isVideoMode: Boolean(get().videoModelSelected),
           });
           void (async () => {
             try {
@@ -2438,7 +2438,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const base64 = await compressToBase64(f, {
             preserveTransparency: false,
-            isVideoMode: get().videoModelSelected,
+            isVideoMode: Boolean(get().videoModelSelected),
           });
           void (async () => {
             try {
@@ -3097,13 +3097,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ imageModel });
   },
-  videoModelSelected: true,
+  videoModelSelected: "grok-imagine-video",
   videoDuration: 15,
   videoResolution: "720p",
   videoAspectRatio: "auto",
   videoProgress: null,
-  selectVideoModel: () => {
-    set({ videoModelSelected: true });
+  selectVideoModel: (model) => {
+    set({ videoModelSelected: model || "grok-imagine-video" });
     if (get().provider !== "grok") get().setProvider("grok");
   },
   setVideoDuration: (videoDuration) => set({ videoDuration }),
@@ -3155,7 +3155,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         referenceImages: [...s.referenceImages, item.url].slice(0, MAX_REFERENCE_IMAGES),
       }));
     }
-    get().showToast("영상 참조 이미지로 추가되었습니다.");
+    get().showToast("?곸긽 李몄“ ?대?吏濡?異붽??섏뿀?듬땲??");
   },
   deleteLibraryItem: async (id) => {
     try {
@@ -3175,13 +3175,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const res = await apiClearReferenceLibrary();
       if (res.success) {
         set({ referenceLibraryItems: [] });
-        get().showToast("보관함이 비워졌습니다.");
+        get().showToast("蹂닿??⑥씠 鍮꾩썙議뚯뒿?덈떎.");
       } else {
-        get().showToast("참조 이미지 보관함을 삭제하지 못했습니다.", true);
+        get().showToast("李몄“ ?대?吏 蹂닿??⑥쓣 ??젣?섏? 紐삵뻽?듬땲??", true);
       }
     } catch (err) {
       console.warn("[store] Failed to clear reference library:", err);
-      get().showToast("참조 이미지 보관함을 삭제하지 못했습니다.", true);
+      get().showToast("李몄“ ?대?吏 蹂닿??⑥쓣 ??젣?섏? 紐삵뻽?듬땲??", true);
     }
   },
   referenceLibraryUploading: false,
@@ -3190,17 +3190,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const res = await uploadReferenceLibraryImage(file);
       if (res.success) {
-        get().showToast("참조 이미지 보관함에 저장되었습니다.");
+        get().showToast("李몄“ ?대?吏 蹂닿??⑥뿉 ??λ릺?덉뒿?덈떎.");
         await get().loadReferenceLibrary();
         if (autoUse) {
           await get().addLibraryItemAsReference(res.item);
         }
       } else {
-        get().showToast("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.", true);
+        get().showToast("?대?吏瑜?蹂닿??⑥뿉 ??ν븯吏 紐삵뻽?듬땲?? JPG濡?蹂?섑븯嫄곕굹 ?댁긽?꾨? ??떠 ?ㅼ떆 ?쒕룄??二쇱꽭??", true);
       }
     } catch (err) {
       console.warn("[store] Failed to upload reference library image:", err);
-      get().showToast("이미지를 보관함에 저장하지 못했습니다. JPG로 변환하거나 해상도를 낮춰 다시 시도해 주세요.", true);
+      get().showToast("?대?吏瑜?蹂닿??⑥뿉 ??ν븯吏 紐삵뻽?듬땲?? JPG濡?蹂?섑븯嫄곕굹 ?댁긽?꾨? ??떠 ?ㅼ떆 ?쒕룄??二쇱꽭??", true);
     } finally {
       set({ referenceLibraryUploading: false });
     }
@@ -3235,6 +3235,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         {
           prompt,
           requestId: flightId,
+          model: get().videoModelSelected || undefined,
           referenceImages: refs.length >= 2 ? refs : undefined,
           sourceImage: refs.length === 1 ? refs[0] : undefined,
           duration: clampVideoDurationUI(get().videoDuration, mode),
@@ -4081,7 +4082,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  // ?? Workspace Profile actions ??
+  // ???? Workspace Profile actions ????
   setWorkspaceProfile(profile) {
     set({ workspaceProfile: profile });
     try { localStorage.setItem("ima2.workspaceProfile", profile); } catch { /* non-critical */ }
@@ -4090,7 +4091,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ promptBuilderOpen: !s.promptBuilderOpen }));
   },
 
-  // ?? Prompt Library actions (0.23) ??
+  // ???? Prompt Library actions (0.23) ????
   setPromptLibraryOpen(open) {
     set({ promptLibraryOpen: open });
   },
@@ -4204,7 +4205,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
-// ?? Graph autosave (module-level debounce) ??
+// ???? Graph autosave (module-level debounce) ????
 const SAVE_DEBOUNCE_MS = 800;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let isSavingGraph = false;
