@@ -3,14 +3,12 @@ import { join } from "path";
 import { randomBytes } from "crypto";
 import type { Express, Request, Response } from "express";
 import { detectImageMimeFromB64 } from "../lib/refs.js";
-import { classifyUpstreamError } from "../lib/errorClassify.js";
 import { normalizeOAuthParams } from "../lib/oauthNormalize.js";
 import { resolveProviderOptions } from "../lib/providerOptions.js";
 import { editViaResponses } from "../lib/responsesImageAdapter.js";
 import { editViaGrok } from "../lib/grokImageAdapter.js";
-import { startJob, finishJob, registerJobAbortController, isJobCanceled } from "../lib/inflight.js";
+import { startJob, finishJob, registerJobAbortController } from "../lib/inflight.js";
 import {
-  isGenerationCanceledError,
   makeGenerationCanceledError,
   throwIfJobCanceled,
 } from "../lib/generationCancel.js";
@@ -19,19 +17,13 @@ import { hasPngAlphaChannel, parsePngInfo } from "../lib/pngInfo.js";
 import { invalidateHistoryIndex } from "../lib/historyIndex.js";
 
 import { errInfo } from "../lib/errInfo.js";
-import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
-function validateModeration(ctx: RuntimeContext, moderation: unknown) {
-  if (typeof moderation !== "string" || !ctx.config.oauth.validModeration.has(moderation)) {
-    return { error: "moderation must be one of: auto, low" };
-  }
-  return { moderation };
-}
-
-function imageFormatFromMime(mime: string | null | undefined): "png" | "jpeg" | "webp" {
-  if (mime === "image/jpeg") return "jpeg";
-  if (mime === "image/webp") return "webp";
-  return "png";
-}
+import { requireRuntimeContext, type RouteRuntimeContext } from "../lib/runtimeContext.js";
+import {
+  validateModeration,
+  imageFormatFromMime,
+  isCanceledGenerationError,
+  buildGenerationErrorResponse,
+} from "../lib/generationRouteHelpers.js";
 
 const MAX_EDIT_MASK_BYTES = 16 * 1024 * 1024;
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -297,9 +289,7 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
       });
     } catch (e) {
       const err = errInfo(e);
-      const ext = (err.raw && typeof err.raw === "object" ? err.raw as Record<string, unknown> : {});
-      const fallbackCode = err.code || classifyUpstreamError(err.message);
-      if (isGenerationCanceledError(err.raw) || isJobCanceled(requestId)) {
+      if (isCanceledGenerationError(err.raw, requestId)) {
         const canceled = makeGenerationCanceledError();
         finishCanceled = true;
         finishHttpStatus = canceled.status;
@@ -310,35 +300,12 @@ export function registerEditRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
           requestId,
         });
       }
+      const { status, payload } = buildGenerationErrorResponse(err.raw, requestId, "EDIT_FAILED");
       finishStatus = "error";
-      finishHttpStatus = err.status || 500;
-      finishErrorCode = fallbackCode || "EDIT_FAILED";
+      finishHttpStatus = status;
+      finishErrorCode = payload.code;
       logError("edit", "error", err.raw, { requestId, code: finishErrorCode });
-      res.status(err.status || 500).json({
-        error: err.message,
-        code: fallbackCode,
-        upstreamCode: ext.upstreamCode || null,
-        upstreamType: ext.upstreamType || null,
-        upstreamParam: ext.upstreamParam || null,
-        diagnosticReason: ext.diagnosticReason || null,
-        retryKind: ext.retryKind || null,
-        initialEventCount: ext.initialEventCount ?? null,
-        initialEventTypes: ext.initialEventTypes || null,
-        referencesDroppedOnRetry: ext.referencesDroppedOnRetry ?? null,
-        developerPromptDroppedOnRetry: ext.developerPromptDroppedOnRetry ?? null,
-        webSearchDroppedOnRetry: ext.webSearchDroppedOnRetry ?? null,
-        fallbackEventCount: ext.fallbackEventCount ?? null,
-        fallbackEventTypes: ext.fallbackEventTypes || null,
-        fallbackImageCallSeen: ext.fallbackImageCallSeen ?? null,
-        fallbackImageResultCount: ext.fallbackImageResultCount ?? null,
-        errorEventCount: ext.eventCount ?? null,
-        eventTypes: ext.eventTypes || null,
-        webSearchCalls: ext.webSearchCalls ?? null,
-        responseDiagnostics: ext.responseDiagnostics || null,
-        toolTypes: ext.toolTypes || null,
-        toolChoiceKind: ext.toolChoiceKind || null,
-        requestId,
-      });
+      res.status(status).json(payload);
     } finally {
       finishJob(requestId, {
         canceled: finishCanceled,

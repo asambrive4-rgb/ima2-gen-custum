@@ -3,15 +3,13 @@ import { join } from "path";
 import { randomBytes } from "crypto";
 import type { Express, Request, Response } from "express";
 import { detectImageMimeFromB64, summarizeReferencePayload, validateAndNormalizeRefs } from "../lib/refs.js";
-import { classifyUpstreamError } from "../lib/errorClassify.js";
 import { normalizeOAuthParams } from "../lib/oauthNormalize.js";
 import { resolveProviderOptions } from "../lib/providerOptions.js";
 import { generateViaResponses } from "../lib/responsesImageAdapter.js";
 import { generateViaGrok, planGrokImage } from "../lib/grokImageAdapter.js";
 import { isNonRetryableGenerationError, normalizeGenerationFailure, type UpstreamErr } from "../lib/generationErrors.js";
-import { startJob, finishJob, registerJobAbortController, isJobCanceled } from "../lib/inflight.js";
+import { startJob, finishJob, registerJobAbortController } from "../lib/inflight.js";
 import {
-  isGenerationCanceledError,
   makeGenerationCanceledError,
   throwIfJobCanceled,
 } from "../lib/generationCancel.js";
@@ -24,19 +22,13 @@ import {
 } from "../lib/composerSnapshot.js";
 
 import { errInfo } from "../lib/errInfo.js";
-import { requireRuntimeContext, type RouteRuntimeContext, type RuntimeContext } from "../lib/runtimeContext.js";
-function validateModeration(ctx: RuntimeContext, moderation: unknown) {
-  if (typeof moderation !== "string" || !ctx.config.oauth.validModeration.has(moderation)) {
-    return { error: "moderation must be one of: auto, low" };
-  }
-  return { moderation };
-}
-
-function imageFormatFromMime(mime: string | null | undefined): "png" | "jpeg" | "webp" {
-  if (mime === "image/jpeg") return "jpeg";
-  if (mime === "image/webp") return "webp";
-  return "png";
-}
+import { requireRuntimeContext, type RouteRuntimeContext } from "../lib/runtimeContext.js";
+import {
+  validateModeration,
+  imageFormatFromMime,
+  isCanceledGenerationError,
+  buildGenerationErrorResponse,
+} from "../lib/generationRouteHelpers.js";
 
 export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext) {
   const ctx = requireRuntimeContext(ctxRaw);
@@ -336,45 +328,22 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
       if (images.length === 0) {
         const firstErr = results.find((r) => r.status === "rejected")?.reason;
         if (firstErr?.code) {
-          const status = firstErr.status || 500;
-          if (isGenerationCanceledError(firstErr)) {
+          if (isCanceledGenerationError(firstErr, requestId)) {
+            const canceled = makeGenerationCanceledError();
             finishCanceled = true;
-            finishHttpStatus = firstErr.status;
-            finishErrorCode = firstErr.code;
-            return res.status(firstErr.status).json({
-              error: firstErr.message,
-              code: firstErr.code,
+            finishHttpStatus = canceled.status;
+            finishErrorCode = canceled.code;
+            return res.status(canceled.status).json({
+              error: canceled.message,
+              code: canceled.code,
               requestId,
             });
           }
+          const { status, payload } = buildGenerationErrorResponse(firstErr, requestId, "GENERATE_FAILED");
           finishStatus = "error";
           finishHttpStatus = status;
-          finishErrorCode = firstErr.code;
-          return res.status(status).json({
-            error: firstErr.message,
-            code: firstErr.code,
-            upstreamCode: firstErr.upstreamCode || null,
-            upstreamType: firstErr.upstreamType || null,
-            upstreamParam: firstErr.upstreamParam || null,
-            diagnosticReason: firstErr.diagnosticReason || null,
-            retryKind: firstErr.retryKind || null,
-            initialEventCount: firstErr.initialEventCount ?? null,
-            initialEventTypes: firstErr.initialEventTypes || null,
-            referencesDroppedOnRetry: firstErr.referencesDroppedOnRetry ?? null,
-            developerPromptDroppedOnRetry: firstErr.developerPromptDroppedOnRetry ?? null,
-            webSearchDroppedOnRetry: firstErr.webSearchDroppedOnRetry ?? null,
-            fallbackEventCount: firstErr.fallbackEventCount ?? null,
-            fallbackEventTypes: firstErr.fallbackEventTypes || null,
-            fallbackImageCallSeen: firstErr.fallbackImageCallSeen ?? null,
-            fallbackImageResultCount: firstErr.fallbackImageResultCount ?? null,
-            errorEventCount: firstErr.eventCount ?? null,
-            eventTypes: firstErr.eventTypes || null,
-            webSearchCalls: firstErr.webSearchCalls ?? null,
-            responseDiagnostics: firstErr.responseDiagnostics || null,
-            toolTypes: firstErr.toolTypes || null,
-            toolChoiceKind: firstErr.toolChoiceKind || null,
-            requestId,
-          });
+          finishErrorCode = payload.code;
+          return res.status(status).json(payload);
         }
         finishStatus = "error";
         finishHttpStatus = 500;
@@ -437,9 +406,7 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
       }
     } catch (e) {
       const err = errInfo(e);
-      const ext = (err.raw && typeof err.raw === "object" ? err.raw as Record<string, unknown> : {});
-      const fallbackCode = err.code || classifyUpstreamError(err.message);
-      if (isGenerationCanceledError(err.raw) || isJobCanceled(requestId)) {
+      if (isCanceledGenerationError(err.raw, requestId)) {
         const canceled = makeGenerationCanceledError();
         finishCanceled = true;
         finishHttpStatus = canceled.status;
@@ -450,35 +417,12 @@ export function registerGenerateRoutes(app: Express, ctxRaw: RouteRuntimeContext
           requestId,
         });
       }
+      const { status, payload } = buildGenerationErrorResponse(err.raw, requestId, "GENERATE_FAILED");
       finishStatus = "error";
-      finishHttpStatus = err.status || 500;
-      finishErrorCode = fallbackCode || "GENERATE_FAILED";
+      finishHttpStatus = status;
+      finishErrorCode = payload.code;
       logError("generate", "error", err.raw, { requestId, code: finishErrorCode });
-      res.status(err.status || 500).json({
-        error: err.message,
-        code: fallbackCode,
-        upstreamCode: ext.upstreamCode || null,
-        upstreamType: ext.upstreamType || null,
-        upstreamParam: ext.upstreamParam || null,
-        diagnosticReason: ext.diagnosticReason || null,
-        retryKind: ext.retryKind || null,
-        initialEventCount: ext.initialEventCount ?? null,
-        initialEventTypes: ext.initialEventTypes || null,
-        referencesDroppedOnRetry: ext.referencesDroppedOnRetry ?? null,
-        developerPromptDroppedOnRetry: ext.developerPromptDroppedOnRetry ?? null,
-        webSearchDroppedOnRetry: ext.webSearchDroppedOnRetry ?? null,
-        fallbackEventCount: ext.fallbackEventCount ?? null,
-        fallbackEventTypes: ext.fallbackEventTypes || null,
-        fallbackImageCallSeen: ext.fallbackImageCallSeen ?? null,
-        fallbackImageResultCount: ext.fallbackImageResultCount ?? null,
-        errorEventCount: ext.eventCount ?? null,
-        eventTypes: ext.eventTypes || null,
-        webSearchCalls: ext.webSearchCalls ?? null,
-        responseDiagnostics: ext.responseDiagnostics || null,
-        toolTypes: ext.toolTypes || null,
-        toolChoiceKind: ext.toolChoiceKind || null,
-        requestId,
-      });
+      res.status(status).json(payload);
     } finally {
       finishJob(requestId, {
         canceled: finishCanceled,
