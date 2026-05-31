@@ -3022,7 +3022,7 @@ interface DummyContractRequirements {
   continuation:
   | { kind: "classic" }
   | { kind: "multimode" }
-  | { kind: "node"; clientId: any };
+  | { kind: "node"; clientId: ClientNodeId };
   // const useMultimode = s.uiMode === "classic" && s.multimode
   // getCustomSizeConfirmation(s, { kind: useMultimode ? "multimode" : "classic" })
   // getCustomSizeConfirmation(get(), { kind: "node", clientId })
@@ -3124,6 +3124,11 @@ interface DummyContractRequirements {
   // function mapHistoryItem
   // setId: it.setId
   // cards: it.cards
+
+  // web-search-toggle-contract:
+  // WEB_SEARCH_STORAGE_KEY
+  // webSearchEnabled: loadWebSearchEnabled()
+  // webSearchEnabled: s.webSearchEnabled
 }
 
 
