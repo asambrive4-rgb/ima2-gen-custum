@@ -3097,13 +3097,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ imageModel });
   },
-  videoModelSelected: "grok-imagine-video",
+  videoModelSelected: "grok-imagine-video-1.5-preview",
   videoDuration: 15,
   videoResolution: "720p",
   videoAspectRatio: "auto",
   videoProgress: null,
   selectVideoModel: (model) => {
-    set({ videoModelSelected: model || "grok-imagine-video" });
+    set({ videoModelSelected: model || "grok-imagine-video-1.5-preview" });
     if (get().provider !== "grok") get().setProvider("grok");
   },
   setVideoDuration: (videoDuration) => set({ videoDuration }),
@@ -4534,4 +4534,3 @@ export function selectCurrentSessionId(state: AppState): string | null {
   }
   return null;
 }
-

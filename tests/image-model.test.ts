@@ -1,7 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { normalizeImageModel } from "../lib/imageModels.ts";
+import { normalizeGrokVideoModel, normalizeImageModel } from "../lib/imageModels.ts";
 import { registerNodeRoutes } from "../routes/nodes.ts";
 
 describe("image model normalization", () => {
@@ -25,6 +25,12 @@ describe("image model normalization", () => {
     const result = normalizeImageModel({}, "bad-model");
     assert.equal(result.code, "INVALID_IMAGE_MODEL");
     assert.equal(result.status, 400);
+  });
+});
+
+describe("Grok video model normalization", () => {
+  it("defaults to Grok Imagine Video 1.5 without an explicit model", () => {
+    assert.deepEqual(normalizeGrokVideoModel(undefined), { model: "grok-imagine-video-1.5-preview" });
   });
 });
 
